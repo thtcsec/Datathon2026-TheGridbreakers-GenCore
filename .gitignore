@@ -1,0 +1,9 @@
+data/raw/*.csv
+data/processed/
+*.zip
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+output/*.csv
+.vscode/
+.idea/
