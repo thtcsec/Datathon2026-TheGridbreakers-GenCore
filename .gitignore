@@ -1,3 +1,6 @@
+node_modules/
+.venv/
+venv/
 data/raw/*.csv
 data/processed/
 *.zip
@@ -7,3 +10,5 @@ __pycache__/
 output/*.csv
 .vscode/
 .idea/
+TEAM_ASSIGNMENTS.md
+.env
