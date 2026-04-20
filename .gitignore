@@ -1,9 +1,13 @@
 data/raw/*.csv
+data/raw/*.xlsx
+data/raw/*.ipynb
 data/processed/
 *.zip
 .ipynb_checkpoints/
 __pycache__/
 *.pyc
+*venv/
 output/*.csv
 .vscode/
 .idea/
+local_docs/
