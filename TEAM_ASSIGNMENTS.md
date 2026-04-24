@@ -40,6 +40,15 @@ Tài liệu nội bộ ghi chú chi tiết vai trò và nhiệm vụ của từn
 
 ---
 
+## 📊 Status Tracker
+
+- [x] **Part 1: MCQ Solver** (Completed by Thắng)
+- [x] **Part 3: Advanced Modeling** (Tuned & Blended - R²: 0.965)
+- [/] **Part 2: EDA & Prescriptive Analysis** (Leader in progress)
+- [ ] **Final Report (LaTeX)** (Pending UEH team)
+
+---
+
 ## 📅 Lộ trình Dự kiến (Timeline)
 - **Ngày 1-3**: Xong Pipeline & Master Join + Xong Part 1 MCQ.
 - **Ngày 4-8**: Hưởng & Nhựt xong EDA & Insights. Leader & Thắng xong Model Baseline + Tuning.
