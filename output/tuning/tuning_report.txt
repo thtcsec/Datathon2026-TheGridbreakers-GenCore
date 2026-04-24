@@ -1,0 +1,23 @@
+======================================================================
+  HYPERPARAMETER TUNING REPORT
+  Generated: 2026-04-24 13:37:36
+======================================================================
+
+Target: Revenue
+  Winner     : LIGHTGBM
+  CV  MAE    : 811756.0912
+  Train MAE  : 353991.8600
+  Train RMSE : 468815.2981
+  Train R²   : 0.9649
+  Best params:
+    n_estimators             : 1021
+    max_depth                : 8
+    learning_rate            : 0.0107252
+    subsample                : 0.984955
+    colsample_bytree         : 0.916221
+    num_leaves               : 38
+    reg_alpha                : 4.32937e-07
+    reg_lambda               : 4.47343e-07
+  All candidates:
+    xgboost         → MAE = 835117.4470
+    lightgbm        → MAE = 811756.0912 ★

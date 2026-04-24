@@ -10,3 +10,5 @@ jupyter
 ipykernel
 scipy
 statsmodels
+optuna
+joblib

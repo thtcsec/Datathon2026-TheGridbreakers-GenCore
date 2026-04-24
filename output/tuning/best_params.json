@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-04-24T13:37:36.189543",
+  "Revenue": {
+    "model": "lightgbm",
+    "params": {
+      "n_estimators": 1021,
+      "max_depth": 8,
+      "learning_rate": 0.010725209743171997,
+      "subsample": 0.9849549260809971,
+      "colsample_bytree": 0.9162213204002109,
+      "num_leaves": 38,
+      "reg_alpha": 4.329370014459266e-07,
+      "reg_lambda": 4.4734294104626844e-07
+    },
+    "cv_MAE": 811756.0911586033,
+    "train_metrics": {
+      "MAE": 353991.8600403437,
+      "RMSE": 468815.29807819246,
+      "R2": 0.9648735100610906,
+      "MAPE": 11.417072088726462,
+      "sMAPE": 10.662352061168269
+    },
+    "all_candidates": {
+      "xgboost": {
+        "best_score": 835117.4469758909,
+        "best_params": {
+          "n_estimators": 1021,
+          "max_depth": 8,
+          "learning_rate": 0.010725209743171997,
+          "subsample": 0.9849549260809971,
+          "colsample_bytree": 0.9162213204002109,
+          "min_child_weight": 3,
+          "reg_alpha": 4.329370014459266e-07,
+          "reg_lambda": 4.4734294104626844e-07
+        }
+      },
+      "lightgbm": {
+        "best_score": 811756.0911586033,
+        "best_params": {
+          "n_estimators": 1021,
+          "max_depth": 8,
+          "learning_rate": 0.010725209743171997,
+          "subsample": 0.9849549260809971,
+          "colsample_bytree": 0.9162213204002109,
+          "num_leaves": 38,
+          "reg_alpha": 4.329370014459266e-07,
+          "reg_lambda": 4.4734294104626844e-07
+        }
+      }
+    }
+  }
+}
