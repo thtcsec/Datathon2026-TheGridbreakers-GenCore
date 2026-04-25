@@ -490,7 +490,9 @@ def build_monthly_kpis(fact_order: pd.DataFrame) -> pd.DataFrame:
         fact_order.groupby("order_month", as_index=False)
         .agg(
             gmv=("order_gmv", "sum"),
+            booked_net_revenue=("order_net_before_outcome", "sum"),
             realized_net_revenue=("realized_net_revenue", "sum"),
+            booked_cogs=("order_cogs", "sum"),
             resolved_orders=("is_resolved", "sum"),
             in_flight_orders=("is_in_flight", "sum"),
             leakage_orders=("is_leakage_order", "sum"),
@@ -514,7 +516,9 @@ def build_quarterly_kpis(monthly_kpis: pd.DataFrame) -> pd.DataFrame:
         monthly_kpis.groupby("quarter", as_index=False)
         .agg(
             gmv=("gmv", "sum"),
+            booked_net_revenue=("booked_net_revenue", "sum"),
             realized_net_revenue=("realized_net_revenue", "sum"),
+            booked_cogs=("booked_cogs", "sum"),
             resolved_orders=("resolved_orders", "sum"),
             in_flight_orders=("in_flight_orders", "sum"),
             leakage_orders=("leakage_orders", "sum"),
@@ -595,10 +599,18 @@ def build_geography_snapshot(fact_order: pd.DataFrame, recent_year: int = 2022) 
 def reconcile_with_sales(monthly_kpis: pd.DataFrame, sales_df: pd.DataFrame) -> pd.DataFrame:
     sales = sales_df.copy()
     sales["order_month"] = sales["Date"].dt.to_period("M").dt.to_timestamp()
-    sales_monthly = sales.groupby("order_month", as_index=False).agg(sales_revenue=("Revenue", "sum"))
+    sales_monthly = sales.groupby("order_month", as_index=False).agg(
+        sales_revenue=("Revenue", "sum"),
+        sales_cogs=("COGS", "sum"),
+    )
     recon = monthly_kpis.merge(sales_monthly, on="order_month", how="left")
-    recon["gap_vs_sales"] = recon["sales_revenue"] - recon["realized_net_revenue"]
-    recon["alignment_ratio"] = safe_divide(recon["realized_net_revenue"], recon["sales_revenue"])
+    recon["gap_vs_sales"] = recon["sales_revenue"] - recon["booked_net_revenue"]
+    recon["alignment_ratio"] = safe_divide(recon["booked_net_revenue"], recon["sales_revenue"])
+    recon["cogs_gap_vs_sales"] = recon["sales_cogs"] - recon["booked_cogs"]
+    recon["cogs_alignment_ratio"] = safe_divide(recon["booked_cogs"], recon["sales_cogs"])
+    recon["realized_gap_vs_sales"] = recon["sales_revenue"] - recon["realized_net_revenue"]
+    recon["realized_vs_sales_ratio"] = safe_divide(recon["realized_net_revenue"], recon["sales_revenue"])
+    recon["outcome_leakage_ratio"] = safe_divide(recon["realized_gap_vs_sales"], recon["sales_revenue"])
     return recon
 
 
@@ -731,8 +743,15 @@ def plot_geography_snapshot(geo_df: pd.DataFrame) -> None:
 def plot_sales_reconciliation(recon_df: pd.DataFrame) -> None:
     plt.figure(figsize=(14, 6))
     plt.plot(recon_df["order_month"], recon_df["sales_revenue"], label="sales.csv revenue", linewidth=2.2)
-    plt.plot(recon_df["order_month"], recon_df["realized_net_revenue"], label="EDA realized net revenue", linewidth=2.2)
-    plt.title("Reconcile xu hướng với sales.csv")
+    plt.plot(recon_df["order_month"], recon_df["booked_net_revenue"], label="EDA booked net revenue", linewidth=2.2)
+    plt.plot(
+        recon_df["order_month"],
+        recon_df["realized_net_revenue"],
+        label="EDA realized net revenue",
+        linewidth=2.0,
+        alpha=0.9,
+    )
+    plt.title("sales.csv aligns with booked revenue; realized revenue is lower after outcomes")
     plt.xlabel("Tháng")
     plt.ylabel("Giá trị")
     plt.gca().yaxis.set_major_formatter(_money_formatter())
@@ -2034,6 +2053,25 @@ def build_size_story(fact_line: pd.DataFrame, top_n: int = 10) -> tuple[pd.DataF
         .reset_index(drop=True)
     )
     ranking["wrong_size_rate"] = safe_divide(ranking["wrong_size_returns"], ranking["order_lines"])
+    category_totals = ranking.groupby("category")[["order_lines", "wrong_size_returns"]].transform("sum")
+    ranking["peer_order_lines"] = category_totals["order_lines"] - ranking["order_lines"]
+    ranking["peer_wrong_size_returns"] = category_totals["wrong_size_returns"] - ranking["wrong_size_returns"]
+    ranking["peer_wrong_size_rate"] = safe_divide(ranking["peer_wrong_size_returns"], ranking["peer_order_lines"])
+    ranking["rate_gap_vs_category_peer"] = ranking["wrong_size_rate"] - ranking["peer_wrong_size_rate"]
+    p_values = []
+    for row in ranking.itertuples(index=False):
+        if row.peer_order_lines <= 0:
+            p_values.append(np.nan)
+            continue
+        contingency = np.array(
+            [
+                [row.wrong_size_returns, max(row.order_lines - row.wrong_size_returns, 0)],
+                [row.peer_wrong_size_returns, max(row.peer_order_lines - row.peer_wrong_size_returns, 0)],
+            ]
+        )
+        chi2, p_value, _dof, _expected = stats.chi2_contingency(contingency)
+        p_values.append(float(p_value))
+    ranking["peer_gap_pvalue"] = p_values
     ranking["share_of_wrong_size_refund"] = safe_divide(
         ranking["wrong_size_refund_value"], ranking["wrong_size_refund_value"].sum()
     )
@@ -2123,6 +2161,9 @@ def build_promo_story(
         months_observed = int(frame["order_month"].nunique())
         negative_margin_months = int(frame["margin_delta"].lt(0).sum())
         erosion_value_proxy = max(-weighted_margin_delta, 0.0) * promo_orders
+        sign_test_pvalue = float(
+            stats.binomtest(negative_margin_months, months_observed, 0.5, alternative="greater").pvalue
+        )
         if recent_year is not None:
             recent_frame = frame.loc[frame["order_month"].dt.year.eq(recent_year)].copy()
         else:
@@ -2140,6 +2181,15 @@ def build_promo_story(
             recent_year_weighted_margin_delta = float(np.average(recent_frame["margin_delta"], weights=recent_weights))
             recent_year_negative_share = safe_divide(recent_year_negative_margin_months, recent_year_months)
             recent_year_erosion_value_proxy = max(-recent_year_weighted_margin_delta, 0.0) * recent_year_promo_orders
+        recent_year_sign_test_pvalue = (
+            float(
+                stats.binomtest(
+                    recent_year_negative_margin_months, recent_year_months, 0.5, alternative="greater"
+                ).pvalue
+            )
+            if recent_year_months > 0
+            else np.nan
+        )
         rows.append(
             {
                 "dominant_category": category,
@@ -2156,6 +2206,7 @@ def build_promo_story(
                 "weighted_net_delta": weighted_net_delta,
                 "weighted_leakage_delta": weighted_leakage_delta,
                 "erosion_value_proxy": erosion_value_proxy,
+                "sign_test_pvalue": sign_test_pvalue,
                 "recent_year": recent_year,
                 "recent_year_months": recent_year_months,
                 "recent_year_promo_orders": recent_year_promo_orders,
@@ -2164,6 +2215,7 @@ def build_promo_story(
                 "recent_year_negative_share": recent_year_negative_share,
                 "recent_year_weighted_margin_delta": recent_year_weighted_margin_delta,
                 "recent_year_erosion_value_proxy": recent_year_erosion_value_proxy,
+                "recent_year_sign_test_pvalue": recent_year_sign_test_pvalue,
             }
         )
     summary = pd.DataFrame(rows)
@@ -2185,6 +2237,40 @@ def build_promo_story(
         ascending=[False, False, False, False],
     ).reset_index(drop=True)
     return summary, wide.sort_values("margin_delta").reset_index(drop=True)
+
+
+def build_excluded_driver_appendix(fact_order: pd.DataFrame, inventory: pd.DataFrame) -> pd.DataFrame:
+    _delivery_curve, threshold_df, delivery_stats = build_delivery_diagnostics(fact_order)
+    stockout_proxy, stockout_stats = build_stockout_proxy(fact_order, inventory)
+
+    best_threshold = threshold_df.sort_values(["gap", "late_orders"], ascending=[False, False]).iloc[0]
+    delivery_summary = {
+        "driver_checked": "Delivery delay",
+        "headline": (
+            f"Test tốt nhất ở ngưỡng >{int(best_threshold['threshold_days'])} ngày cho gap "
+            f"{best_threshold['gap']:.1%}"
+        ),
+        "evidence": (
+            f"CI [{best_threshold['ci_low']:.1%}, {best_threshold['ci_high']:.1%}] | "
+            f"Mann-Whitney p={delivery_stats['mann_whitney_pvalue']:.3f}"
+        ),
+        "decision": "Giữ ở appendix vì CI chạm 0 hoặc effect quá nhỏ, chưa đủ justify action ưu tiên cao.",
+    }
+
+    top_stockout = stockout_proxy.sort_values(["stockout_rate", "leakage_rate"], ascending=[False, False]).iloc[0]
+    stockout_summary = {
+        "driver_checked": "Stockout pressure",
+        "headline": (
+            f"corr(stockout_rate, leakage_rate) = {stockout_stats['corr_stockout_vs_leakage']:.3f}"
+        ),
+        "evidence": (
+            f"corr(fill_rate, realized_net_revenue) = {stockout_stats['corr_fill_vs_net']:.3f} | "
+            f"hotspot {top_stockout['dominant_category']} stockout {top_stockout['stockout_rate']:.1%}"
+        ),
+        "decision": "Giữ ở appendix vì tương quan yếu; tín hiệu phù hợp monitoring hơn là root cause chính.",
+    }
+
+    return pd.DataFrame([delivery_summary, stockout_summary])
 
 
 def plot_promo_story(promo_summary: pd.DataFrame) -> None:
@@ -2692,6 +2778,7 @@ def build_action_plan(
 ) -> pd.DataFrame:
     current_year = int(fact_order["order_year"].max())
     current = fact_order.loc[(fact_order["order_year"] == current_year) & fact_order["is_resolved"]].copy()
+    year_leakage_total = float(current["cancel_leakage"].sum() + current["return_leakage"].sum())
 
     cancel_hotspot = cancel_methods.iloc[0]
     cancel_scope = current.loc[current["payment_method"].eq(cancel_hotspot["payment_method"])]
@@ -2809,8 +2896,27 @@ def build_action_plan(
         "Risk review queue cho high-risk orders": "Ưu tiên 3: phù hợp khi capacity review hữu hạn",
         "Promo guardrail theo bucket": "Ưu tiên 4: triển khai như pilot guardrail vì đây là proxy signal",
     }
+    tradeoff_map = {
+        "Giảm friction COD/cancellation": (
+            "Tác động mạnh trên cancel leakage nhưng cần tránh siết checkout quá tay làm giảm conversion."
+        ),
+        "Size guidance + exchange flow": (
+            "Ít rủi ro doanh thu hơn promo, nhưng cần phối hợp merchandising + CX để triển khai nhất quán."
+        ),
+        "Risk review queue cho high-risk orders": (
+            "Cải thiện targeting tốt nhưng đánh đổi bằng capacity review, SLA vận hành và false positive."
+        ),
+        "Promo guardrail theo bucket": (
+            "Có upside margin rõ trên bucket xấu nhưng có rủi ro giảm volume, nên chỉ nên pilot có kiểm soát."
+        ),
+    }
     action_df["priority_rank"] = action_df["action"].map(priority_map).fillna(99).astype(int)
     action_df["priority_note"] = action_df["action"].map(priority_note_map).fillna("Ưu tiên theo recoverable value")
+    action_df["trade_off"] = action_df["action"].map(tradeoff_map).fillna("Ưu tiên theo recoverable value và effort")
+    action_df["share_of_year_leakage"] = safe_divide(action_df["recoverable_base_value"], year_leakage_total)
+    action_df["share_of_scope_leakage"] = safe_divide(
+        action_df["recoverable_base_value"], action_df["current_leakage_value"]
+    )
     return action_df.sort_values(["priority_rank", "recoverable_base_value"], ascending=[True, False]).reset_index(drop=True)
 
 
@@ -2876,6 +2982,8 @@ def build_executive_summary(
     top_metrics = metrics_df.iloc[0]
     runner_up = metrics_df.iloc[1] if len(metrics_df) > 1 else metrics_df.iloc[0]
     top_queue = review_queue_df.iloc[0]
+    total_base_recovery = float(action_df["recoverable_base_value"].sum())
+    total_recovery_share = float(action_df["share_of_year_leakage"].sum()) if "share_of_year_leakage" in action_df else np.nan
     lines = [
         "## Executive Summary",
         "",
@@ -2901,7 +3009,11 @@ def build_executive_summary(
         ),
         "",
         "### 4. Nên làm gì trong 30-60-90 ngày?",
-        "- Các upside bên dưới được sizing trên scope năm gần nhất và nên được đọc như value-at-stake để ưu tiên pilot, không phải forecast cam kết.",
+        (
+            f"- Các upside bên dưới được sizing trên scope năm gần nhất và nên được đọc như value-at-stake để ưu tiên pilot, "
+            f"không phải forecast cam kết. Tổng base-case của 4 action hiện khoảng "
+            f"{_format_vnd_compact(total_base_recovery)} (~{total_recovery_share:.1%} leakage năm gần nhất)."
+        ),
         *[
             (
                 f"- {row['action']}: base recoverable value ~ "
@@ -2922,6 +3034,7 @@ __all__ = [
     "build_delivery_diagnostics",
     "build_descriptive_summary",
     "build_dimension_mix",
+    "build_excluded_driver_appendix",
     "build_executive_summary",
     "build_fact_tables",
     "build_geography_snapshot",
