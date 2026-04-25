@@ -618,8 +618,8 @@ def plot_kpi_trends(monthly_kpis: pd.DataFrame) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(18, 11))
     monthly_kpis.plot(x="order_month", y=["gmv", "realized_net_revenue"], ax=axes[0, 0], linewidth=2.4)
     axes[0, 0].set_title("KPI theo tháng: GMV và realized net revenue")
-    axes[0, 0].set_xlabel("Tháng")
-    axes[0, 0].set_ylabel("Giá trị")
+    axes[0, 0].set_xlabel("Month")
+    axes[0, 0].set_ylabel("Value")
     kpi_max = float(monthly_kpis[["gmv", "realized_net_revenue"]].abs().max().max())
     kpi_scale, kpi_suffix, kpi_decimals = _money_axis_config(kpi_max)
     axes[0, 0].yaxis.set_major_formatter(_money_formatter(scale=kpi_scale, suffix=kpi_suffix, decimals=kpi_decimals))
@@ -631,7 +631,7 @@ def plot_kpi_trends(monthly_kpis: pd.DataFrame) -> None:
 
     monthly_kpis.plot(x="order_month", y="aov", ax=axes[1, 0], color="#E15759", linewidth=2.2)
     axes[1, 0].set_title("AOV realized theo tháng")
-    axes[1, 0].set_xlabel("Tháng")
+    axes[1, 0].set_xlabel("Month")
     axes[1, 0].set_ylabel("AOV")
     aov_max = float(monthly_kpis["aov"].abs().max())
     aov_scale, aov_suffix, aov_decimals = _money_axis_config(aov_max)
@@ -639,8 +639,8 @@ def plot_kpi_trends(monthly_kpis: pd.DataFrame) -> None:
 
     monthly_kpis.plot(x="order_month", y=["return_rate", "cancel_rate", "leakage_rate"], ax=axes[1, 1], linewidth=2.2)
     axes[1, 1].set_title("Return rate, cancel rate và leakage rate")
-    axes[1, 1].set_xlabel("Tháng")
-    axes[1, 1].set_ylabel("Tỷ lệ")
+    axes[1, 1].set_xlabel("Month")
+    axes[1, 1].set_ylabel("Rate")
     axes[1, 1].yaxis.set_major_formatter(PercentFormatter(1.0))
     plt.tight_layout()
     plt.show()
@@ -703,7 +703,7 @@ def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> Non
         ax.set_title(title)
         ax.set_xlabel("Realized net revenue")
         ax.set_ylabel("")
-        ax.xaxis.set_major_formatter(_money_formatter())
+        ax.xaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
         for idx, (_, row) in enumerate(mix_df.iterrows()):
             ax.text(
                 row["realized_net_revenue"],
@@ -722,7 +722,7 @@ def plot_geography_snapshot(geo_df: pd.DataFrame) -> None:
     axes[0].set_title("Realized net revenue theo region (2022)")
     axes[0].set_xlabel("Region")
     axes[0].set_ylabel("Realized net revenue")
-    axes[0].yaxis.set_major_formatter(_money_formatter())
+    axes[0].yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
 
     rate_df = geo_df.melt(
         id_vars="region",
@@ -752,9 +752,9 @@ def plot_sales_reconciliation(recon_df: pd.DataFrame) -> None:
         alpha=0.9,
     )
     plt.title("sales.csv aligns with booked revenue; realized revenue is lower after outcomes")
-    plt.xlabel("Tháng")
-    plt.ylabel("Giá trị")
-    plt.gca().yaxis.set_major_formatter(_money_formatter())
+    plt.xlabel("Month")
+    plt.ylabel("Value")
+    plt.gca().yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -1833,7 +1833,7 @@ def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> Non
         ax.set_title(title)
         ax.set_xlabel("Realized net revenue")
         ax.set_ylabel("")
-        ax.xaxis.set_major_formatter(_money_formatter())
+        ax.xaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
         x_max = float(mix_df["realized_net_revenue"].max()) if not mix_df.empty else 1.0
         ax.set_xlim(0, x_max * 1.65)
         ax.tick_params(axis="x", labelrotation=25)
