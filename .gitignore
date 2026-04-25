@@ -18,3 +18,4 @@ output/*.csv
 .vscode/
 .idea/
 local_docs/
+.DS_Store
