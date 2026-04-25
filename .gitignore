@@ -1,10 +1,14 @@
 node_modules/
 .venv/
 venv/
+.env
 data/raw/*.csv
 data/raw/*.xlsx
 data/raw/*.ipynb
-data/processed/
+data/processed/*.csv
+data/processed/*.xlsx
+data/external/*.csv
+data/external/*.xlsx
 *.zip
 .ipynb_checkpoints/
 __pycache__/
@@ -13,5 +17,4 @@ __pycache__/
 output/*.csv
 .vscode/
 .idea/
-.env
 local_docs/
