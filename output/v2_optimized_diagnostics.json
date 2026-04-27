@@ -1,0 +1,82 @@
+{
+  "dynamic_blend": false,
+  "fold_years": [
+    2022
+  ],
+  "results": {
+    "Revenue": {
+      "weights": {
+        "naive": 0.45,
+        "prophet": 0.0,
+        "hybrid": 0.55
+      },
+      "fold_mae": {
+        "naive": 881282.7678082192,
+        "prophet": 1665346.2578557294,
+        "hybrid": 819145.9078154443,
+        "blend": 679341.0914456295
+      },
+      "diagnostics": {
+        "target": "Revenue",
+        "folds": [
+          {
+            "year": 2022,
+            "rows_train": 3468,
+            "rows_valid": 365,
+            "mae_naive": 881282.7678082192,
+            "mae_prophet": 1665346.2578557294,
+            "mae_hybrid": 819145.9078154443,
+            "mae_blend": 679341.0914456295,
+            "weights": {
+              "naive": 0.45,
+              "prophet": 0.0,
+              "hybrid": 0.55
+            }
+          }
+        ],
+        "avg_weights": {
+          "naive": 0.45,
+          "prophet": 0.0,
+          "hybrid": 0.55
+        }
+      }
+    },
+    "COGS": {
+      "weights": {
+        "naive": 0.35000000000000003,
+        "prophet": 0.0,
+        "hybrid": 0.6499999999999999
+      },
+      "fold_mae": {
+        "naive": 748752.9844999999,
+        "prophet": 1412554.4808256447,
+        "hybrid": 653382.3712410822,
+        "blend": 575417.3447077764
+      },
+      "diagnostics": {
+        "target": "COGS",
+        "folds": [
+          {
+            "year": 2022,
+            "rows_train": 3468,
+            "rows_valid": 365,
+            "mae_naive": 748752.9844999999,
+            "mae_prophet": 1412554.4808256447,
+            "mae_hybrid": 653382.3712410822,
+            "mae_blend": 575417.3447077764,
+            "weights": {
+              "naive": 0.35000000000000003,
+              "prophet": 0.0,
+              "hybrid": 0.6499999999999999
+            }
+          }
+        ],
+        "avg_weights": {
+          "naive": 0.35000000000000003,
+          "prophet": 0.0,
+          "hybrid": 0.6499999999999999
+        }
+      }
+    }
+  }
+}
