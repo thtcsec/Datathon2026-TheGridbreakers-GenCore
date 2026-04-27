@@ -1,0 +1,123 @@
+{
+  "timestamp": "2026-04-27T21:59:10.553631",
+  "n_profiles_searched": 17,
+  "fold_years": [
+    2020,
+    2021,
+    2022
+  ],
+  "best_profiles": {
+    "Revenue": {
+      "name": "full_highreg",
+      "train_start_year": null,
+      "cps": 0.03,
+      "seasonality_mode": "multiplicative",
+      "lgb_objective": "mae",
+      "cv_mae": 635869.0954258803,
+      "weights": [
+        0.3333333333333333,
+        0.11666666666666668,
+        0.5499999999999999
+      ]
+    },
+    "COGS": {
+      "name": "full_mult_cps01",
+      "train_start_year": null,
+      "cps": 0.1,
+      "seasonality_mode": "multiplicative",
+      "lgb_objective": "mae",
+      "cv_mae": 531418.8739867957,
+      "weights": [
+        0.35000000000000003,
+        0.05000000000000001,
+        0.6
+      ]
+    }
+  },
+  "all_results_summary": {
+    "Revenue": [
+      {
+        "profile": "full_highreg",
+        "mae": 635869.0954258803
+      },
+      {
+        "profile": "full_mult_cps003",
+        "mae": 641842.2139978277
+      },
+      {
+        "profile": "full_mult_cps01",
+        "mae": 642221.3068601658
+      },
+      {
+        "profile": "full_add_cps005",
+        "mae": 645624.5992590289
+      },
+      {
+        "profile": "full_tet_wide",
+        "mae": 651406.972493836
+      },
+      {
+        "profile": "full_mult_cps005",
+        "mae": 652654.4910512257
+      },
+      {
+        "profile": "full_static",
+        "mae": 652654.4910512257
+      },
+      {
+        "profile": "full_mult_quantile",
+        "mae": 654060.0838520897
+      },
+      {
+        "profile": "recent16_mult_cps01",
+        "mae": 665550.4569582255
+      },
+      {
+        "profile": "recent16_mult",
+        "mae": 674254.3594026391
+      }
+    ],
+    "COGS": [
+      {
+        "profile": "full_mult_cps01",
+        "mae": 531418.8739867957
+      },
+      {
+        "profile": "full_mult_cps003",
+        "mae": 531800.1935080047
+      },
+      {
+        "profile": "full_highreg",
+        "mae": 535653.416825076
+      },
+      {
+        "profile": "full_mult_cps005",
+        "mae": 537897.5045081066
+      },
+      {
+        "profile": "full_static",
+        "mae": 537897.5045081066
+      },
+      {
+        "profile": "full_mult_quantile",
+        "mae": 538227.520204084
+      },
+      {
+        "profile": "full_tet_wide",
+        "mae": 538895.2895868288
+      },
+      {
+        "profile": "full_add_cps005",
+        "mae": 542578.3395075194
+      },
+      {
+        "profile": "recent16_mult_cps01",
+        "mae": 548514.6526395271
+      },
+      {
+        "profile": "recent16_mult",
+        "mae": 558275.505282239
+      }
+    ]
+  }
+}
