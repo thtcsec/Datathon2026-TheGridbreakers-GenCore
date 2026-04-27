@@ -1,0 +1,45 @@
+{
+  "version": "v4_topkill",
+  "timestamp": "2026-04-27T23:17:31.966042",
+  "cv_results": {
+    "Revenue_conservative": 757666.9000802084,
+    "Revenue_balanced": 760087.3756385678,
+    "Revenue_aggressive": 762475.1645969523,
+    "Revenue_pure_prophet": 762863.0709812164,
+    "COGS_conservative": 659525.2777570077,
+    "COGS_balanced": 659002.8959526762,
+    "COGS_aggressive": 659029.2420834762,
+    "COGS_pure_prophet": 664278.8969707012
+  },
+  "best_variant": {
+    "Revenue": "conservative",
+    "COGS": "balanced"
+  },
+  "prophet_configs": [
+    {
+      "cps": 0.03,
+      "smode": "multiplicative",
+      "yearly_fo": 15
+    },
+    {
+      "cps": 0.05,
+      "smode": "multiplicative",
+      "yearly_fo": 20
+    },
+    {
+      "cps": 0.1,
+      "smode": "multiplicative",
+      "yearly_fo": 20
+    },
+    {
+      "cps": 0.05,
+      "smode": "additive",
+      "yearly_fo": 20
+    }
+  ],
+  "fold_years": [
+    2020,
+    2021,
+    2022
+  ]
+}
