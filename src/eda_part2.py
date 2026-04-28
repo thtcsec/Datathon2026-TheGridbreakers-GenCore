@@ -7,6 +7,7 @@ import warnings
 from typing import Any, Iterable
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from matplotlib.transforms import offset_copy
 import numpy as np
 import pandas as pd
@@ -64,28 +65,28 @@ def set_plot_theme() -> None:
     plt.rcParams["axes.formatter.useoffset"] = False
 
 
-def _money_formatter(scale: float = 1e9, suffix: str = " tỷ VND", decimals: int = 1):
+def _money_formatter(scale: float = 1e9, suffix: str = " B VND", decimals: int = 1):
     return FuncFormatter(lambda x, _pos: f"{x / scale:,.{decimals}f}{suffix}")
 
 
 def _money_axis_config(max_abs_value: float) -> tuple[float, str, int]:
     if max_abs_value >= 1e9:
-        return 1e9, " tỷ VND", 2
+        return 1e9, " B VND", 2
     if max_abs_value >= 1e6:
-        return 1e6, " triệu VND", 1
+        return 1e6, " M VND", 1
     if max_abs_value >= 1e3:
-        return 1e3, " nghìn VND", 1
+        return 1e3, " K VND", 1
     return 1.0, " VND", 0
 
 
 def _format_vnd_compact(value: float) -> str:
     abs_value = abs(value)
     if abs_value >= 1e9:
-        return f"{value / 1e9:,.2f} tỷ VND"
+        return f"{value / 1e9:,.2f} B VND"
     if abs_value >= 1e6:
-        return f"{value / 1e6:,.2f} triệu VND"
+        return f"{value / 1e6:,.2f} M VND"
     if abs_value >= 1e3:
-        return f"{value / 1e3:,.1f} nghìn VND"
+        return f"{value / 1e3:,.1f} K VND"
     return f"{value:,.0f} VND"
 
 
@@ -547,8 +548,8 @@ def build_waterfall_summary(fact_order: pd.DataFrame) -> pd.DataFrame:
         {
             "stage": [
                 "GMV",
-                "Discount",
-                "Cancel leakage",
+                "Discounts",
+                "Cancellation leakage",
                 "Return leakage",
                 "Realized net revenue",
             ],
@@ -617,7 +618,7 @@ def reconcile_with_sales(monthly_kpis: pd.DataFrame, sales_df: pd.DataFrame) -> 
 def plot_kpi_trends(monthly_kpis: pd.DataFrame) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(18, 11))
     monthly_kpis.plot(x="order_month", y=["gmv", "realized_net_revenue"], ax=axes[0, 0], linewidth=2.4)
-    axes[0, 0].set_title("KPI theo tháng: GMV và realized net revenue")
+    axes[0, 0].set_title("Monthly KPI trend: GMV and realized net revenue")
     axes[0, 0].set_xlabel("Month")
     axes[0, 0].set_ylabel("Value")
     kpi_max = float(monthly_kpis[["gmv", "realized_net_revenue"]].abs().max().max())
@@ -625,20 +626,20 @@ def plot_kpi_trends(monthly_kpis: pd.DataFrame) -> None:
     axes[0, 0].yaxis.set_major_formatter(_money_formatter(scale=kpi_scale, suffix=kpi_suffix, decimals=kpi_decimals))
 
     monthly_kpis.plot(x="order_month", y=["resolved_orders", "in_flight_orders"], ax=axes[0, 1], linewidth=2.2)
-    axes[0, 1].set_title("Số đơn đã chốt outcome so với đơn in-flight")
-    axes[0, 1].set_xlabel("Tháng")
-    axes[0, 1].set_ylabel("Số đơn")
+    axes[0, 1].set_title("Resolved orders vs in-flight orders")
+    axes[0, 1].set_xlabel("Month")
+    axes[0, 1].set_ylabel("Orders")
 
     monthly_kpis.plot(x="order_month", y="aov", ax=axes[1, 0], color="#E15759", linewidth=2.2)
-    axes[1, 0].set_title("AOV realized theo tháng")
+    axes[1, 0].set_title("Monthly realized AOV")
     axes[1, 0].set_xlabel("Month")
-    axes[1, 0].set_ylabel("AOV")
+    axes[1, 0].set_ylabel("Average order value")
     aov_max = float(monthly_kpis["aov"].abs().max())
     aov_scale, aov_suffix, aov_decimals = _money_axis_config(aov_max)
     axes[1, 0].yaxis.set_major_formatter(_money_formatter(scale=aov_scale, suffix=aov_suffix, decimals=aov_decimals))
 
     monthly_kpis.plot(x="order_month", y=["return_rate", "cancel_rate", "leakage_rate"], ax=axes[1, 1], linewidth=2.2)
-    axes[1, 1].set_title("Return rate, cancel rate và leakage rate")
+    axes[1, 1].set_title("Monthly return, cancellation, and leakage rates")
     axes[1, 1].set_xlabel("Month")
     axes[1, 1].set_ylabel("Rate")
     axes[1, 1].yaxis.set_major_formatter(PercentFormatter(1.0))
@@ -673,14 +674,14 @@ def plot_waterfall(waterfall_df: pd.DataFrame) -> None:
         plt.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_y() + bar.get_height(),
-            f"{value / 1e9:,.1f} tỷ",
+            f"{value / 1e9:,.1f} B VND",
             ha="center",
             va="bottom",
             fontsize=10,
         )
     plt.title("Waterfall leakage: GMV -> Discount -> Cancel/Return -> Realized net revenue")
     plt.xlabel("Stage")
-    plt.ylabel("Giá trị")
+    plt.ylabel("Value")
     plt.gca().yaxis.set_major_formatter(_money_formatter())
     plt.xticks(rotation=12)
     plt.tight_layout()
@@ -690,10 +691,10 @@ def plot_waterfall(waterfall_df: pd.DataFrame) -> None:
 def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> None:
     dims = ["dominant_category", "order_source", "payment_method", "device_type"]
     titles = [
-        "Mix theo category",
-        "Mix theo order source",
-        "Mix theo payment method",
-        "Mix theo device type",
+        "Category mix",
+        "Order-source mix",
+        "Payment-method mix",
+        "Device mix",
     ]
     fig, axes = plt.subplots(2, 2, figsize=(18, 12))
     axes = axes.flatten()
@@ -703,7 +704,7 @@ def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> Non
         ax.set_title(title)
         ax.set_xlabel("Realized net revenue")
         ax.set_ylabel("")
-        ax.xaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
+        ax.xaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" M VND", decimals=1))
         for idx, (_, row) in enumerate(mix_df.iterrows()):
             ax.text(
                 row["realized_net_revenue"],
@@ -719,10 +720,10 @@ def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> Non
 def plot_geography_snapshot(geo_df: pd.DataFrame) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     sns.barplot(data=geo_df, x="region", y="realized_net_revenue", ax=axes[0], color="#59A14F")
-    axes[0].set_title("Realized net revenue theo region (2022)")
+    axes[0].set_title("Realized net revenue by region (2022)")
     axes[0].set_xlabel("Region")
     axes[0].set_ylabel("Realized net revenue")
-    axes[0].yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
+    axes[0].yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" M VND", decimals=1))
 
     rate_df = geo_df.melt(
         id_vars="region",
@@ -730,10 +731,11 @@ def plot_geography_snapshot(geo_df: pd.DataFrame) -> None:
         var_name="metric",
         value_name="rate",
     )
+    rate_df["metric"] = rate_df["metric"].replace({"return_rate": "Return rate", "cancel_rate": "Cancellation rate"})
     sns.barplot(data=rate_df, x="region", y="rate", hue="metric", ax=axes[1])
-    axes[1].set_title("Return rate và cancel rate theo region (2022)")
+    axes[1].set_title("Return and cancellation rates by region (2022)")
     axes[1].set_xlabel("Region")
-    axes[1].set_ylabel("Tỷ lệ")
+    axes[1].set_ylabel("Rate")
     axes[1].yaxis.set_major_formatter(PercentFormatter(1.0))
     axes[1].legend(title="")
     plt.tight_layout()
@@ -742,19 +744,19 @@ def plot_geography_snapshot(geo_df: pd.DataFrame) -> None:
 
 def plot_sales_reconciliation(recon_df: pd.DataFrame) -> None:
     plt.figure(figsize=(14, 6))
-    plt.plot(recon_df["order_month"], recon_df["sales_revenue"], label="sales.csv revenue", linewidth=2.2)
-    plt.plot(recon_df["order_month"], recon_df["booked_net_revenue"], label="EDA booked net revenue", linewidth=2.2)
+    plt.plot(recon_df["order_month"], recon_df["sales_revenue"], label="Revenue from sales.csv", linewidth=2.2)
+    plt.plot(recon_df["order_month"], recon_df["booked_net_revenue"], label="Booked net revenue from EDA", linewidth=2.2)
     plt.plot(
         recon_df["order_month"],
         recon_df["realized_net_revenue"],
-        label="EDA realized net revenue",
+        label="Realized net revenue from EDA",
         linewidth=2.0,
         alpha=0.9,
     )
-    plt.title("sales.csv aligns with booked revenue; realized revenue is lower after outcomes")
+    plt.title("sales.csv reconciliation: booked revenue aligns, realized revenue is lower after outcomes")
     plt.xlabel("Month")
     plt.ylabel("Value")
-    plt.gca().yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
+    plt.gca().yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" M VND", decimals=1))
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -781,11 +783,11 @@ def build_descriptive_summary(
     )
 
     return [
-        f"Năm {latest_year}, realized net revenue đạt {current_net / 1e9:,.1f} tỷ VND, thay đổi {yoy:.1%} so với năm trước.",
-        f"Tháng mạnh nhất là {top_month['order_month']:%m/%Y} với {top_month['realized_net_revenue'] / 1e9:,.1f} tỷ VND realized net revenue.",
-        f"Leakage rate cao nhất rơi vào {worst_leakage_month['order_month']:%m/%Y} ở mức {worst_leakage_month['leakage_rate']:.1%}.",
-        f"Category dẫn dắt doanh thu năm {latest_year} là {top_category['dominant_category']} với tỷ trọng {top_category['share_of_net_revenue']:.1%}.",
-        f"Region có áp lực hoàn hàng cao nhất là {weakest_region['region']} với return rate {weakest_region['return_rate']:.1%}; nhóm in-flight hiện chiếm khoảng {in_flight_share:.1%} đơn của năm {latest_year}.",
+        f"In {latest_year}, realized net revenue reached {current_net / 1e9:,.1f} B VND, changing {yoy:.1%} versus the prior year.",
+        f"The strongest month was {top_month['order_month']:%m/%Y} with {top_month['realized_net_revenue'] / 1e9:,.1f} B VND in realized net revenue.",
+        f"The highest leakage rate occurred in {worst_leakage_month['order_month']:%m/%Y} at {worst_leakage_month['leakage_rate']:.1%}.",
+        f"The leading category in {latest_year} was {top_category['dominant_category']} with a {top_category['share_of_net_revenue']:.1%} revenue share.",
+        f"The region with the highest return pressure was {weakest_region['region']} at a {weakest_region['return_rate']:.1%} return rate; in-flight orders still represent roughly {in_flight_share:.1%} of {latest_year} volume.",
     ]
 
 
@@ -868,8 +870,8 @@ def plot_delivery_diagnostics(delivery_curve: pd.DataFrame, threshold_df: pd.Dat
         capsize=4,
     )
     axes[1].axhline(0, color="#444444", linestyle="--", linewidth=1.0, alpha=0.8)
-    axes[1].set_title("Threshold test cho delivery delay")
-    axes[1].set_xlabel("Ngưỡng delivery days")
+    axes[1].set_title("Threshold test for delivery delay")
+    axes[1].set_xlabel("Delivery-day threshold")
     axes[1].set_ylabel("Leakage rate gap (bps)")
     axes[1].yaxis.set_major_formatter(FuncFormatter(lambda x, _pos: f"{x:.0f} bps"))
     plt.tight_layout()
@@ -946,7 +948,7 @@ def plot_cancellation_diagnostic(cancel_df: pd.DataFrame, region_device: pd.Data
     top = cancel_df.head(10).copy()
     top["combo"] = top["payment_method"] + " | " + top["order_source"]
     sns.barplot(data=top, y="combo", x="cancel_rate", ax=axes[0], color="#E15759")
-    axes[0].set_title("Top payment x source có cancel rate cao nhất")
+    axes[0].set_title("Payment-source combinations with the highest cancellation rates")
     axes[0].set_xlabel("Cancel rate")
     axes[0].set_ylabel("")
     axes[0].xaxis.set_major_formatter(PercentFormatter(1.0))
@@ -1004,9 +1006,9 @@ def plot_promo_proxy(promo_proxy: pd.DataFrame) -> None:
     plt.axhline(0, color="black", linestyle="--", linewidth=1)
     plt.colorbar(scatter, label="Leakage delta (promo - no promo)")
     plt.title("Promotion proxy: discount rate vs margin delta")
-    plt.xlabel("Average discount rate của nhóm promo")
-    plt.ylabel("Margin delta so với bucket no-promo")
-    plt.gca().yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND"))
+    plt.xlabel("Average discount rate in the promo group")
+    plt.ylabel("Margin delta versus the no-promo bucket")
+    plt.gca().yaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" M VND"))
     plt.tight_layout()
     plt.show()
 
@@ -1092,33 +1094,33 @@ def build_root_cause_summary(
     promo_drag = promo_proxy.sort_values("margin_delta").iloc[0]
     stockout_hotspot = stockout_proxy.sort_values(["stockout_rate", "leakage_rate"], ascending=False).iloc[0]
     if best_threshold["gap"] > 0:
-        delivery_signal = f">{int(best_threshold['threshold_days'])} ngày làm leakage tăng {best_threshold['gap']:.1%}"
-        delivery_hint = "Ưu tiên SLA intervention và pre-alert"
+        delivery_signal = f">{int(best_threshold['threshold_days'])} days is associated with a {best_threshold['gap']:.1%} increase in leakage"
+        delivery_hint = "Prioritize SLA intervention and pre-alerts"
     else:
-        delivery_signal = f"Chưa thấy threshold delivery tạo penalty rõ (best test {int(best_threshold['threshold_days'])} ngày)"
-        delivery_hint = "Theo dõi như hygiene factor, chưa nên dồn ngân sách lớn"
+        delivery_signal = f"No delivery threshold shows a clear penalty yet (best test: {int(best_threshold['threshold_days'])} days)"
+        delivery_hint = "Monitor as a hygiene factor rather than concentrating major budget here"
     rows = [
         {
             "driver": "Cancellation mix",
-            "quant_signal": f"{top_cancel['payment_method']} | {top_cancel['order_source']} có cancel rate {top_cancel['cancel_rate']:.1%}",
-            "evidence": f"Trên {int(top_cancel['resolved_orders']):,} đơn resolved",
-            "action_hint": "Tối ưu payment & channel policy",
+            "quant_signal": f"{top_cancel['payment_method']} | {top_cancel['order_source']} has a cancellation rate of {top_cancel['cancel_rate']:.1%}",
+            "evidence": f"Across {int(top_cancel['resolved_orders']):,} resolved orders",
+            "action_hint": "Optimize payment and channel policy",
         },
         {
             "driver": "Wrong-size return",
-            "quant_signal": f"{top_size['category']} size {top_size['size']} có wrong-size rate {top_size['wrong_size_rate']:.1%}",
-            "evidence": f"Refund {top_size['refund_amount'] / 1e9:,.2f} tỷ VND",
-            "action_hint": "Siết size guidance / exchange flow",
+            "quant_signal": f"{top_size['category']} size {top_size['size']} has a wrong-size rate of {top_size['wrong_size_rate']:.1%}",
+            "evidence": f"Refund value of {top_size['refund_amount'] / 1e9:,.2f} B VND",
+            "action_hint": "Tighten size guidance and the exchange flow",
         },
         {
             "driver": "Promotion cannibalization",
-            "quant_signal": f"Bucket {promo_drag['dominant_category']} | {promo_drag['order_source']} có margin delta {_format_vnd_compact(float(promo_drag['margin_delta']))}",
+            "quant_signal": f"Bucket {promo_drag['dominant_category']} | {promo_drag['order_source']} shows a margin delta of {_format_vnd_compact(float(promo_drag['margin_delta']))}",
             "evidence": f"Discount rate promo {promo_drag['avg_discount_rate_promo']:.1%}",
-            "action_hint": "Đặt guardrail cho promo",
+            "action_hint": "Introduce promo guardrails",
         },
         {
             "driver": "Stockout pressure",
-            "quant_signal": f"{stockout_hotspot['dominant_category']} có stockout {stockout_hotspot['stockout_rate']:.1%} và leakage {stockout_hotspot['leakage_rate']:.1%}",
+            "quant_signal": f"{stockout_hotspot['dominant_category']} shows stockout at {stockout_hotspot['stockout_rate']:.1%} and leakage at {stockout_hotspot['leakage_rate']:.1%}",
             "evidence": f"Fill rate {stockout_hotspot['fill_rate']:.1%}",
             "action_hint": "Replenishment cho high-risk category",
         },
@@ -1399,15 +1401,15 @@ def build_risk_segments(modeling_result: dict[str, Any]) -> pd.DataFrame:
 def plot_risk_segments(segment_df: pd.DataFrame) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(16, 5))
     sns.barplot(data=segment_df, x="risk_segment", y="leakage_rate", ax=axes[0], palette="Reds")
-    axes[0].set_title("Leakage rate theo risk segment (test 2022)")
+    axes[0].set_title("Leakage rate by risk segment (2022 test set)")
     axes[0].set_xlabel("Risk segment")
     axes[0].set_ylabel("Leakage rate")
     axes[0].yaxis.set_major_formatter(PercentFormatter(1.0))
 
     sns.barplot(data=segment_df, x="risk_segment", y="orders", ax=axes[1], palette="Blues")
-    axes[1].set_title("Quy mô orders theo risk segment (test 2022)")
+    axes[1].set_title("Order volume by risk segment (2022 test set)")
     axes[1].set_xlabel("Risk segment")
-    axes[1].set_ylabel("Số orders")
+    axes[1].set_ylabel("Orders")
     plt.tight_layout()
     plt.show()
 
@@ -1442,23 +1444,23 @@ def build_action_plan(
         margin_rate=margin_rate_base,
         cost_base=_estimate_cost_base(size_impacted_value, 2.0),
         effort=2.0,
-        timeline="30 ngày: fit guide; 60 ngày: exchange flow; 90 ngày: optimize theo category",
+        timeline="30 days: launch fit guide; 60 days: exchange-first flow; 90 days: optimize by category",
     )
 
     best_threshold = threshold_df.sort_values("gap", ascending=False).iloc[0]
     delayed = current.loc[current["delivery_days"].fillna(0) > best_threshold["threshold_days"]]
     delayed_impacted_value = delayed["order_net_before_outcome"].sum()
     sla_action = _action_row(
-        action="SLA intervention cho đơn giao chậm",
+        action="SLA intervention for delayed orders",
         driver="Delivery delay",
         owner="Ops + Logistics",
-        kpi="Leakage rate của đơn > threshold",
+        kpi="Leakage rate for orders above threshold",
         annual_impacted_value=delayed_impacted_value,
         baseline_leakage_rate=float(best_threshold["gap"]),
         margin_rate=margin_rate_base,
         cost_base=_estimate_cost_base(delayed_impacted_value, 3.0),
         effort=3.0,
-        timeline="30 ngày: alert; 60 ngày: carrier SLA; 90 ngày: exception routing",
+        timeline="30 days: alerts; 60 days: carrier SLA; 90 days: exception routing",
     )
 
     promo_drag = promo_proxy.sort_values("margin_delta").iloc[0]
@@ -1467,7 +1469,7 @@ def build_action_plan(
     ]
     promo_impacted_value = risky_promo_scope["order_net_before_outcome"].sum()
     promo_action = _action_row(
-        action="Promo guardrail theo bucket",
+        action="Promo guardrail by bucket",
         driver="Promotion cannibalization",
         owner="Growth + Finance",
         kpi="Margin delta promo vs non-promo",
@@ -1476,14 +1478,14 @@ def build_action_plan(
         margin_rate=margin_rate_base,
         cost_base=_estimate_cost_base(promo_impacted_value, 2.5),
         effort=2.5,
-        timeline="30 ngày: freeze rules; 60 ngày: guardrail; 90 ngày: bucket scoring",
+        timeline="30 days: freeze pilot rules; 60 days: guardrail rollout; 90 days: bucket scoring",
     )
 
     stockout_hotspot = stockout_proxy.sort_values(["stockout_rate", "leakage_rate"], ascending=False).iloc[0]
     stock_scope = current.loc[current["dominant_category"].eq(stockout_hotspot["dominant_category"])]
     stock_impacted_value = stock_scope["order_gmv"].sum()
     stock_action = _action_row(
-        action="Stock replenishment cho high-risk category",
+        action="Stock replenishment for high-risk category",
         driver="Stockout pressure",
         owner="Supply Chain",
         kpi="Stockout rate / fill rate",
@@ -1492,7 +1494,7 @@ def build_action_plan(
         margin_rate=margin_rate_base,
         cost_base=_estimate_cost_base(stock_impacted_value, 4.0),
         effort=4.0,
-        timeline="30 ngày: reorder trigger; 60 ngày: safety stock; 90 ngày: monthly S&OP",
+        timeline="30 days: reorder trigger; 60 days: safety stock; 90 days: monthly S&OP",
     )
 
     cancel_hotspot = cancel_df.iloc[0]
@@ -1504,13 +1506,13 @@ def build_action_plan(
         action="Payment-channel friction reduction",
         driver="Cancellation pattern",
         owner="Checkout + CRM",
-        kpi="Cancel rate của hotspot combo",
+        kpi="Cancel rate for hotspot payment-source combo",
         annual_impacted_value=cancel_impacted_value,
         baseline_leakage_rate=float(cancel_hotspot["cancel_rate"]),
         margin_rate=margin_rate_base,
         cost_base=_estimate_cost_base(cancel_impacted_value, 1.8),
         effort=1.8,
-        timeline="30 ngày: UX/message test; 60 ngày: payment incentive; 90 ngày: policy tuning",
+        timeline="30 days: UX and messaging test; 60 days: payment incentive; 90 days: policy tuning",
     )
 
     action_df = pd.DataFrame([size_action, sla_action, promo_action, stock_action, cancel_action])
@@ -1597,7 +1599,7 @@ def plot_action_matrix(action_df: pd.DataFrame) -> None:
             arrowprops={"arrowstyle": "-", "color": "#7A7A7A", "lw": 0.8},
         )
     plt.title("Action matrix: Impact vs Effort")
-    plt.xlabel("Effort score (1 thấp - 5 cao)")
+    plt.xlabel("Effort score (1 low - 5 high)")
     plt.ylabel("Base-case annual benefit")
     plt.gca().yaxis.set_major_formatter(_money_formatter(scale=scale, suffix=suffix, decimals=decimals))
     x_min, x_max = action_df["effort"].min(), action_df["effort"].max()
@@ -1626,20 +1628,20 @@ def build_executive_summary(
     lines = [
         "## Executive Summary",
         "",
-        "### 1. Điều gì đang xảy ra?",
+        "### 1. What is happening?",
         *[f"- {point}" for point in descriptive_points[:3]],
         "",
-        "### 2. Vì sao đang xảy ra?",
+        "### 2. Why is it happening?",
         *[
             f"- {row['driver']}: {row['quant_signal']} ({row['evidence']})."
             for _, row in root_cause_df.head(3).iterrows()
         ],
         "",
-        "### 3. Mô hình cảnh báo sớm có đáng tin không?",
-        f"- LogisticRegression đạt ROC-AUC {top_metrics['roc_auc']:.3f}, PR-AUC {top_metrics['pr_auc']:.3f}, Brier {top_metrics['brier']:.3f}.",
-        f"- Ở ngưỡng review top 15%, lift@15% đạt {top_metrics['lift_at_15pct']:.2f}x so với baseline.",
+        "### 3. Is the early-warning layer reliable?",
+        f"- LogisticRegression reaches ROC-AUC {top_metrics['roc_auc']:.3f}, PR-AUC {top_metrics['pr_auc']:.3f}, and Brier {top_metrics['brier']:.3f}.",
+        f"- At the top-15% review threshold, lift@15% reaches {top_metrics['lift_at_15pct']:.2f}x versus the baseline.",
         "",
-        "### 4. Nên làm gì trong 30-60-90 ngày?",
+        "### 4. What should happen in the next 30-60-90 days?",
         *[
             f"- {row['action']}: benefit base-case ~ {_format_vnd_compact(float(row['benefit']))}, ROI {row['roi']:.1%}."
             for _, row in top_actions.iterrows()
@@ -1652,28 +1654,28 @@ def build_self_scoring() -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "criterion": "Chất lượng trực quan hoá",
+                "criterion": "Visualization quality",
                 "target_score": 14,
                 "self_score": 14,
-                "evidence": "Bộ chart chuẩn hoá, title/axis/unit/annotation nhất quán.",
+                "evidence": "Standardized chart system with consistent titles, axes, units, and annotations.",
             },
             {
-                "criterion": "Chiều sâu phân tích",
+                "criterion": "Analytical depth",
                 "target_score": 23,
                 "self_score": 23,
-                "evidence": "Đủ 4 tầng, có diagnostic test và model leakage với AUC/PR/calibration.",
+                "evidence": "Covers all four levels with diagnostic tests and leakage modeling supported by AUC, PR, and calibration views.",
             },
             {
-                "criterion": "Insight kinh doanh",
+                "criterion": "Business insight",
                 "target_score": 14,
                 "self_score": 14,
-                "evidence": "5 action có ROI/payback/owner/KPI rõ ràng.",
+                "evidence": "Five actions with clear ROI, payback framing, owner, and KPI definition.",
             },
             {
-                "criterion": "Tính sáng tạo & kể chuyện",
+                "criterion": "Creativity and storytelling",
                 "target_score": 4,
                 "self_score": 4,
-                "evidence": "Storyline xuyên suốt từ leakage -> driver -> risk -> action.",
+                "evidence": "Coherent storyline from leakage to driver, risk, and action.",
             },
         ]
     )
@@ -1685,12 +1687,12 @@ DEFAULT_REVIEW_SHARE = 0.15
 def _compact_money_formatter():
     return FuncFormatter(
         lambda x, _pos: (
-            f"{x / 1e9:,.1f} tỷ VND"
+            f"{x / 1e9:,.1f} B VND"
             if abs(x) >= 1e9
             else (
-                f"{x / 1e6:,.1f} triệu VND"
+                f"{x / 1e6:,.1f} M VND"
                 if abs(x) >= 1e6
-                else (f"{x / 1e3:,.1f} nghìn VND" if abs(x) >= 1e3 else f"{x:,.0f} VND")
+                else (f"{x / 1e3:,.1f} K VND" if abs(x) >= 1e3 else f"{x:,.0f} VND")
             )
         )
     )
@@ -1729,7 +1731,7 @@ def build_descriptive_scorecard(fact_order: pd.DataFrame, recent_year: int | Non
     metric_map = [
         ("GMV", current["order_gmv"].sum(), prev["order_gmv"].sum()),
         ("Realized net revenue", current["realized_net_revenue"].sum(), prev["realized_net_revenue"].sum()),
-        ("Cancel leakage", current["cancel_leakage"].sum(), prev["cancel_leakage"].sum()),
+        ("Cancellation leakage", current["cancel_leakage"].sum(), prev["cancel_leakage"].sum()),
         ("Return leakage", current["return_leakage"].sum(), prev["return_leakage"].sum()),
         (
             "Total leakage value",
@@ -1758,72 +1760,156 @@ def plot_descriptive_scorecard(scorecard: pd.DataFrame) -> None:
         ax.axis("off")
         ax.text(0.02, 0.72, row.metric, fontsize=12, fontweight="bold", transform=ax.transAxes)
         ax.text(0.02, 0.42, _format_vnd_compact(float(row.value)), fontsize=16, transform=ax.transAxes)
-        ax.text(0.02, 0.14, f"YoY {row.yoy_change:+.1%}", fontsize=11, color="#4E79A7", transform=ax.transAxes)
+        ax.text(
+            0.02,
+            0.14,
+            f"vs prior year {row.yoy_change:+.1%}",
+            fontsize=11,
+            color="#4E79A7",
+            transform=ax.transAxes,
+        )
         ax.add_patch(
             plt.Rectangle((0.0, 0.0), 1.0, 1.0, transform=ax.transAxes, fill=False, edgecolor="#D0D0D0", linewidth=1.2)
         )
-    fig.suptitle("Scorecard năm hiện tại", y=1.02, fontsize=16)
+    fig.suptitle("Current-year scorecard", y=1.02, fontsize=16)
     plt.tight_layout()
     plt.show()
 
 
 def plot_waterfall(waterfall_df: pd.DataFrame) -> None:
+    df = waterfall_df.copy().reset_index(drop=True)
+    stage_colors = {
+        "GMV": "#2F5D8C",
+        "Discounts": "#D17B28",
+        "Cancellation leakage": "#D8576B",
+        "Return leakage": "#B56576",
+        "Realized net revenue": "#3A8F6F",
+    }
+
+    starts: list[float] = []
+    heights: list[float] = []
+    colors: list[str] = []
     running = 0.0
-    starts = []
-    heights = []
-    colors = []
-    for _, row in waterfall_df.iterrows():
-        if row["stage"] == "GMV":
-            starts.append(0)
-            heights.append(row["value"])
-            running = row["value"]
-            colors.append("#4E79A7")
-        elif row["stage"] == "Realized net revenue":
-            starts.append(0)
-            heights.append(row["value"])
-            colors.append("#59A14F")
+    for row in df.itertuples(index=False):
+        stage = str(row.stage)
+        value = float(row.value)
+        if stage == "GMV":
+            starts.append(0.0)
+            heights.append(value)
+            running = value
+        elif stage == "Realized net revenue":
+            starts.append(0.0)
+            heights.append(value)
         else:
-            height = row["value"]
-            starts.append(running if height < 0 else 0)
-            heights.append(height)
-            running += height
-            colors.append("#E15759")
-    plt.figure(figsize=(14, 6))
-    bars = plt.bar(waterfall_df["stage"], heights, bottom=starts, color=colors)
-    for bar, value in zip(bars, waterfall_df["value"]):
-        plt.text(
+            starts.append(running if value < 0 else 0.0)
+            heights.append(value)
+            running += value
+        colors.append(stage_colors.get(stage, "#4E79A7"))
+
+    x = np.arange(len(df))
+    width = 0.72
+    fig, ax = plt.subplots(figsize=(15, 7))
+    fig.patch.set_facecolor("#FBFBF8")
+    ax.set_facecolor("#FBFBF8")
+
+    bars = ax.bar(
+        x,
+        heights,
+        bottom=starts,
+        width=width,
+        color=colors,
+        edgecolor="white",
+        linewidth=1.6,
+        zorder=3,
+    )
+
+    cumulative = []
+    running = 0.0
+    for row in df.itertuples(index=False):
+        stage = str(row.stage)
+        value = float(row.value)
+        if stage == "GMV":
+            running = value
+            cumulative.append(running)
+        elif stage == "Realized net revenue":
+            cumulative.append(value)
+        else:
+            running += value
+            cumulative.append(running)
+
+    for idx in range(len(df) - 2):
+        connector_y = cumulative[idx]
+        ax.plot(
+            [x[idx] + width / 2, x[idx + 1] - width / 2],
+            [connector_y, connector_y],
+            color="#7A7A7A",
+            linewidth=1.2,
+            alpha=0.8,
+            linestyle=(0, (3, 2)),
+            zorder=2,
+        )
+
+    for idx, (bar, value) in enumerate(zip(bars, df["value"])):
+        bar_top = bar.get_y() + bar.get_height()
+        label_y = bar_top + 0.015 * max(df["value"].abs().max(), 1.0)
+        if value < 0:
+            label_y = bar.get_y() + bar.get_height() - 0.04 * max(df["value"].abs().max(), 1.0)
+        ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_y() + bar.get_height(),
+            label_y,
             _format_vnd_compact(float(value)),
             ha="center",
-            va="bottom",
+            va="bottom" if value >= 0 else "top",
             fontsize=10,
+            fontweight="bold" if idx in (0, len(df) - 1) else "normal",
+            color="#222222",
         )
-    bar_tops = [s + h for s, h in zip(starts, heights)]
-    y_min = min(min(starts), min(bar_tops))
-    y_max = max(max(starts), max(bar_tops))
-    y_span = max(y_max - y_min, 1.0)
-    plt.ylim(y_min - 0.05 * y_span, y_max + 0.20 * y_span)
 
-    plt.title(
-        "Waterfall leakage (2012-2022 cumulative): GMV -> Discount -> Cancel/Return -> Realized net revenue",
-        pad=18,
+    y_min = min(min(starts), min(s + h for s, h in zip(starts, heights)))
+    y_max = max(max(starts), max(s + h for s, h in zip(starts, heights)))
+    y_span = max(y_max - y_min, 1.0)
+    ax.set_ylim(y_min - 0.08 * y_span, y_max + 0.20 * y_span)
+
+    legend_handles = [
+        Patch(facecolor="#2F5D8C", label="Starting value"),
+        Patch(facecolor="#D17B28", label="Commercial deduction"),
+        Patch(facecolor="#D8576B", label="Leakage deduction"),
+        Patch(facecolor="#3A8F6F", label="Ending value"),
+    ]
+    ax.legend(handles=legend_handles, loc="upper left", bbox_to_anchor=(0.0, 1.12), ncol=4, frameon=False)
+
+    ax.text(
+        0.0,
+        1.03,
+        "Negative stages are shown as deductions from GMV before arriving at realized net revenue.",
+        transform=ax.transAxes,
+        fontsize=10,
+        color="#5A5A5A",
     )
-    plt.xlabel("Stage")
-    plt.ylabel("Giá trị")
-    plt.gca().yaxis.set_major_formatter(_money_formatter())
-    plt.xticks(rotation=12)
-    plt.tight_layout(rect=(0, 0, 1, 0.93))
+    ax.set_title(
+        "Cumulative revenue bridge (2012-2022): GMV to realized net revenue",
+        pad=48,
+        fontweight="bold",
+    )
+    ax.set_xlabel("Stage")
+    ax.set_ylabel("Value")
+    ax.set_xticks(x)
+    ax.set_xticklabels(df["stage"], rotation=0)
+    ax.yaxis.set_major_formatter(_money_formatter())
+    ax.grid(axis="y", color="#D9D9D9", linewidth=0.8, alpha=0.7, zorder=0)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    plt.tight_layout(rect=(0, 0, 1, 0.92))
     plt.show()
 
 
 def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> None:
     dims = ["dominant_category", "order_source", "payment_method", "device_type"]
     titles = [
-        "Mix theo category",
-        "Mix theo order source",
-        "Mix theo payment method",
-        "Mix theo device type",
+        "Mix by category",
+        "Mix by order source",
+        "Mix by payment method",
+        "Mix by device",
     ]
     fig, axes = plt.subplots(2, 2, figsize=(19, 12))
     axes = axes.flatten()
@@ -1833,9 +1919,9 @@ def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> Non
         ax.set_title(title)
         ax.set_xlabel("Realized net revenue")
         ax.set_ylabel("")
-        ax.xaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" triệu VND", decimals=1))
+        ax.xaxis.set_major_formatter(_money_formatter(scale=1e6, suffix=" M VND", decimals=1))
         x_max = float(mix_df["realized_net_revenue"].max()) if not mix_df.empty else 1.0
-        ax.set_xlim(0, x_max * 1.65)
+        ax.set_xlim(0, x_max * 1.85)
         ax.tick_params(axis="x", labelrotation=25)
         for label in ax.get_xticklabels():
             label.set_ha("right")
@@ -1846,9 +1932,9 @@ def plot_mix_dashboard(fact_order: pd.DataFrame, recent_year: int = 2022) -> Non
                 row["realized_net_revenue"],
                 idx,
                 (
-                    f"share {row['share_of_net_revenue']:.1%} | "
-                    f"orders {int(row['resolved_orders']):,}\n"
-                    f"leakage {row['leakage_rate']:.1%}"
+                    f"Revenue share: {row['share_of_net_revenue']:.1%} | "
+                    f"{int(row['resolved_orders']):,} resolved orders\n"
+                    f"Leakage rate: {row['leakage_rate']:.1%}"
                 ),
                 transform=text_transform,
                 va="center",
@@ -1885,21 +1971,21 @@ def build_descriptive_summary(
 
     return [
         (
-            f"Năm {latest_year}, realized net revenue đạt {_format_vnd_compact(float(current_net))}, "
-            f"thay đổi {yoy:+.1%} YoY; tổng leakage value đạt {_format_vnd_compact(float(current_leakage))} "
+            f"In {latest_year}, realized net revenue reached {_format_vnd_compact(float(current_net))}, "
+            f"changing {yoy:+.1%} YoY, while total leakage value reached {_format_vnd_compact(float(current_leakage))} "
             f"({leakage_yoy:+.1%} YoY)."
         ),
         (
-            f"Tháng mạnh nhất trong năm là {top_month['order_month']:%m/%Y} với "
-            f"{_format_vnd_compact(float(top_month['realized_net_revenue']))} realized net revenue, "
-            f"trong khi tháng áp lực leakage cao nhất là {worst_leakage_month['order_month']:%m/%Y} ở mức "
+            f"The strongest month was {top_month['order_month']:%m/%Y} with "
+            f"{_format_vnd_compact(float(top_month['realized_net_revenue']))} in realized net revenue, "
+            f"while the month with the highest leakage pressure was {worst_leakage_month['order_month']:%m/%Y} at "
             f"{worst_leakage_month['leakage_rate']:.1%}."
         ),
         (
-            f"{top_category['dominant_category']} dẫn dắt {top_category['share_of_net_revenue']:.1%} realized net revenue "
-            f"và {top_category['share_of_orders']:.1%} volume resolved của năm {latest_year}; "
-            f"{top_region['region']} đóng góp {top_region_share:.1%} realized net revenue, "
-            f"trong khi {resolved_share:.1%} flow của năm đã chốt outcome."
+            f"{top_category['dominant_category']} led {top_category['share_of_net_revenue']:.1%} of realized net revenue "
+            f"and {top_category['share_of_orders']:.1%} of resolved volume in {latest_year}; "
+            f"{top_region['region']} contributed {top_region_share:.1%} of realized net revenue, "
+            f"while {resolved_share:.1%} of the year's flow had already reached a final outcome."
         ),
     ]
 
@@ -1962,11 +2048,11 @@ def build_cancellation_story(
     )
     metrics_df = pd.DataFrame(
         [
-            {"metric": "Overall cancel rate", "value": overall_cancel_rate, "note": "Tỷ lệ hủy trên toàn bộ resolved orders"},
+            {"metric": "Overall cancellation rate", "value": overall_cancel_rate, "note": "Cancellation rate across all resolved orders"},
             {
-                "metric": f"{top_method['payment_method']} cancel rate",
+                "metric": f"{top_method['payment_method']} cancellation rate",
                 "value": float(top_method["cancel_rate"]),
-                "note": f"Lift {top_method['rate_lift_vs_avg']:.2f}x so với baseline",
+                "note": f"Lift of {top_method['rate_lift_vs_avg']:.2f}x versus the baseline",
             },
             {
                 "metric": f"{top_method['payment_method']} vs non-{top_method['payment_method']} gap",
@@ -1990,19 +2076,19 @@ def plot_cancellation_story(method_summary: pd.DataFrame, combo_summary: pd.Data
 
     top_methods = method_summary.head(5).copy()
     sns.barplot(data=top_methods, y="payment_method", x="cancel_rate", ax=axes[0], color="#E15759")
-    axes[0].set_title("Cancel rate theo payment method")
-    axes[0].set_xlabel("Cancel rate")
+    axes[0].set_title("Cancellation rate by payment method")
+    axes[0].set_xlabel("Cancellation rate")
     axes[0].set_ylabel("")
     axes[0].xaxis.set_major_formatter(PercentFormatter(1.0))
 
     max_rate = float(top_methods["cancel_rate"].max()) if not top_methods.empty else 1.0
-    axes[0].set_xlim(0, max_rate * 1.45)
+    axes[0].set_xlim(0, max_rate * 1.60)
     text_tf_left = offset_copy(axes[0].transData, fig=fig, x=8, y=0, units="points")
     for idx, row in enumerate(top_methods.itertuples(index=False)):
         axes[0].text(
             row.cancel_rate,
             idx,
-            f"leakage {row.share_of_cancel_leakage:.1%} | orders {int(row.orders):,}",
+            f"Share of cancellation leakage: {row.share_of_cancel_leakage:.1%} | {int(row.orders):,} resolved orders",
             transform=text_tf_left,
             va="center",
             fontsize=9,
@@ -2012,8 +2098,8 @@ def plot_cancellation_story(method_summary: pd.DataFrame, combo_summary: pd.Data
     top_combo = combo_summary.head(8).copy()
     top_combo["combo"] = top_combo["payment_method"] + " | " + top_combo["order_source"]
     sns.barplot(data=top_combo, y="combo", x="cancel_leakage_value", ax=axes[1], color="#4E79A7")
-    axes[1].set_title("Operational hotspot: combo gây cancel leakage lớn")
-    axes[1].set_xlabel("Cancel leakage value")
+    axes[1].set_title("Operational hotspot: largest cancellation leakage by combo")
+    axes[1].set_xlabel("Cancellation leakage value")
     axes[1].set_ylabel("")
     axes[1].xaxis.set_major_formatter(_compact_money_formatter())
     axes[1].tick_params(axis="x", labelrotation=25)
@@ -2021,13 +2107,13 @@ def plot_cancellation_story(method_summary: pd.DataFrame, combo_summary: pd.Data
         label.set_ha("right")
 
     max_leakage = float(top_combo["cancel_leakage_value"].max()) if not top_combo.empty else 1.0
-    axes[1].set_xlim(0, max_leakage * 1.40)
+    axes[1].set_xlim(0, max_leakage * 1.50)
     text_tf_right = offset_copy(axes[1].transData, fig=fig, x=8, y=0, units="points")
     for idx, row in enumerate(top_combo.itertuples(index=False)):
         axes[1].text(
             row.cancel_leakage_value,
             idx,
-            f"rate {row.cancel_rate:.1%} | orders {int(row.orders):,}",
+            f"Cancellation rate: {row.cancel_rate:.1%} | {int(row.orders):,} orders",
             transform=text_tf_right,
             va="center",
             fontsize=9,
@@ -2088,13 +2174,13 @@ def build_size_story(fact_line: pd.DataFrame, top_n: int = 10) -> tuple[pd.DataF
 def plot_size_story(size_pivot: pd.DataFrame, size_ranking: pd.DataFrame) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(18, 6))
     sns.heatmap(size_pivot, annot=True, fmt=".1%", cmap="YlOrRd", ax=axes[0])
-    axes[0].set_title("Wrong-size return rate theo category x size")
+    axes[0].set_title("Wrong-size return rate by category and size")
     axes[0].set_xlabel("Size")
     axes[0].set_ylabel("Category")
 
     ranking = size_ranking.copy().sort_values("wrong_size_refund_value", ascending=True)
     sns.barplot(data=ranking, y="bucket", x="wrong_size_refund_value", ax=axes[1], color="#E1913D")
-    axes[1].set_title("Bucket gây thất thoát wrong-size refund lớn nhất")
+    axes[1].set_title("Largest wrong-size refund buckets")
     axes[1].set_xlabel("Wrong-size refund value")
     axes[1].set_ylabel("")
     axes[1].xaxis.set_major_formatter(_compact_money_formatter())
@@ -2103,14 +2189,18 @@ def plot_size_story(size_pivot: pd.DataFrame, size_ranking: pd.DataFrame) -> Non
         label.set_ha("right")
 
     x_max = float(ranking["wrong_size_refund_value"].max()) if not ranking.empty else 1.0
-    axes[1].set_xlim(0, x_max * 1.40)
+    axes[1].set_xlim(0, x_max * 1.55)
 
     text_tf = offset_copy(axes[1].transData, fig=fig, x=8, y=0, units="points")
     for idx, row in enumerate(ranking.itertuples(index=False)):
         axes[1].text(
             row.wrong_size_refund_value,
             idx,
-            f"rate {row.wrong_size_rate:.1%} | orders {int(row.order_lines):,}",
+            (
+                f"Share of wrong-size refund: {row.share_of_wrong_size_refund:.1%} | "
+                f"{int(row.order_lines):,} order lines\n"
+                f"Wrong-size rate: {row.wrong_size_rate:.1%}"
+            ),
             transform=text_tf,
             va="center",
             fontsize=9,
@@ -2247,14 +2337,14 @@ def build_excluded_driver_appendix(fact_order: pd.DataFrame, inventory: pd.DataF
     delivery_summary = {
         "driver_checked": "Delivery delay",
         "headline": (
-            f"Test tốt nhất ở ngưỡng >{int(best_threshold['threshold_days'])} ngày cho gap "
+            f"Best threshold test at >{int(best_threshold['threshold_days'])} days produced a gap of "
             f"{best_threshold['gap']:.1%}"
         ),
         "evidence": (
             f"CI [{best_threshold['ci_low']:.1%}, {best_threshold['ci_high']:.1%}] | "
             f"Mann-Whitney p={delivery_stats['mann_whitney_pvalue']:.3f}"
         ),
-        "decision": "Giữ ở appendix vì CI chạm 0 hoặc effect quá nhỏ, chưa đủ justify action ưu tiên cao.",
+        "decision": "Kept in the appendix because the CI touches zero or the effect is too small to justify a top-priority action.",
     }
 
     top_stockout = stockout_proxy.sort_values(["stockout_rate", "leakage_rate"], ascending=[False, False]).iloc[0]
@@ -2267,7 +2357,7 @@ def build_excluded_driver_appendix(fact_order: pd.DataFrame, inventory: pd.DataF
             f"corr(fill_rate, realized_net_revenue) = {stockout_stats['corr_fill_vs_net']:.3f} | "
             f"hotspot {top_stockout['dominant_category']} stockout {top_stockout['stockout_rate']:.1%}"
         ),
-        "decision": "Giữ ở appendix vì tương quan yếu; tín hiệu phù hợp monitoring hơn là root cause chính.",
+        "decision": "Kept in the appendix because the correlation is weak; the signal is better suited for monitoring than for the main root-cause story.",
     }
 
     return pd.DataFrame([delivery_summary, stockout_summary])
@@ -2319,10 +2409,10 @@ def plot_promo_story(promo_summary: pd.DataFrame) -> None:
             bbox={"boxstyle": "round,pad=0.18", "fc": "white", "alpha": 0.82, "ec": "none"},
         )
     ax.margins(x=0.12, y=0.18)
-    plt.colorbar(scatter, label="Share of matched months promo margin < no-promo")
-    ax.set_title("Promo proxy within matched category x source x month buckets")
-    ax.set_xlabel("Average discount rate của promo bucket")
-    ax.set_ylabel("Margin delta (promo - no promo, recent year where possible)")
+    plt.colorbar(scatter, label="Share of matched months where promo margin is below no-promo")
+    ax.set_title("Promo proxy within matched category-source-month buckets")
+    ax.set_xlabel("Average discount rate in the promo bucket")
+    ax.set_ylabel("Margin delta (promo minus no-promo, prioritizing the most recent year)")
     ax.xaxis.set_major_formatter(PercentFormatter(1.0))
     ax.yaxis.set_major_formatter(_compact_money_formatter())
     plt.tight_layout()
@@ -2355,40 +2445,40 @@ def build_story_root_causes(
             {
                 "driver": "Cancellation friction",
                 "quant_signal": (
-                    f"{top_cancel['payment_method']} có cancel rate {top_cancel['cancel_rate']:.1%} "
-                    f"và chiếm {top_cancel['share_of_cancel_leakage']:.1%} cancel leakage"
+                    f"{top_cancel['payment_method']} posts a cancellation rate of {top_cancel['cancel_rate']:.1%} "
+                    f"and accounts for {top_cancel['share_of_cancel_leakage']:.1%} of cancellation leakage"
                 ),
                 "evidence": (
                     f"Full-history resolved sample | scope {int(top_cancel['orders']):,} orders | leakage "
                     f"{_format_vnd_compact(float(top_cancel['cancel_leakage_value']))}"
                 ),
-                "action_hint": "Giảm friction ở checkout / CRM cho payment method rủi ro cao",
+                "action_hint": "Reduce checkout and CRM friction for the highest-risk payment method",
             },
             {
                 "driver": "Wrong-size return",
                 "quant_signal": (
-                    f"{top_size['bucket']} có wrong-size rate {top_size['wrong_size_rate']:.1%} "
-                    f"và chiếm {top_size['share_of_wrong_size_refund']:.1%} wrong-size refund"
+                    f"{top_size['bucket']} shows a wrong-size rate of {top_size['wrong_size_rate']:.1%} "
+                    f"and represents {top_size['share_of_wrong_size_refund']:.1%} of wrong-size refund value"
                 ),
                 "evidence": (
                     f"Full-history order-line sample | refund {_format_vnd_compact(float(top_size['wrong_size_refund_value']))} "
-                    f"trên {int(top_size['order_lines']):,} order lines"
+                    f"across {int(top_size['order_lines']):,} order lines"
                 ),
-                "action_hint": "Siết size guidance và ưu tiên exchange flow cho bucket lớn",
+                "action_hint": "Strengthen size guidance and prioritize an exchange-first flow for the largest bucket",
             },
             {
                 "driver": "Promotion erosion (proxy)",
                 "quant_signal": (
-                    f"So sánh matched theo tháng trong cùng category/source cho thấy "
-                    f"{promo_row['dominant_category']} | {promo_row['order_source']} có proxy margin delta "
+                    f"Matched monthly comparisons within the same category and source show that "
+                    f"{promo_row['dominant_category']} | {promo_row['order_source']} has a proxy margin delta of "
                     f"{_format_vnd_compact(promo_recent_margin)}"
                 ),
                 "evidence": (
-                    f"Full-history {int(promo_row['paired_months']):,} matched months | năm {promo_recent_year} "
+                    f"Full-history {int(promo_row['paired_months']):,} matched months | year {promo_recent_year} "
                     f"scope {promo_recent_orders:,} promo orders | negative months "
                     f"{promo_recent_negative_share:.0%}"
                 ),
-                "action_hint": "Đặt pilot promo guardrail theo bucket thay vì cắt promo diện rộng",
+                "action_hint": "Pilot bucket-level promo guardrails instead of broad-based promo cuts",
             },
         ]
     )
@@ -2644,7 +2734,7 @@ def build_review_queue_summary(modeling_result: dict[str, Any]) -> pd.DataFrame:
 def plot_review_capture(review_queue_df: pd.DataFrame) -> None:
     plt.figure(figsize=(10, 5))
     sns.barplot(data=review_queue_df, x="model", y="captured_leakage_value_share", color="#4E79A7")
-    plt.title("Captured leakage value under ~15% review capacity")
+    plt.title("Captured leakage value share under ~15% review capacity")
     plt.xlabel("")
     plt.ylabel("Captured leakage value share")
     plt.gca().yaxis.set_major_formatter(PercentFormatter(1.0))
@@ -2652,7 +2742,7 @@ def plot_review_capture(review_queue_df: pd.DataFrame) -> None:
         plt.text(
             idx,
             row.captured_leakage_value_share,
-            f"{row.captured_leakage_value_share:.1%}\nqueue {row.queue_leakage_rate:.1%}",
+            f"capture {row.captured_leakage_value_share:.1%}\nqueue leakage {row.queue_leakage_rate:.1%}",
             ha="center",
             va="bottom",
             fontsize=9,
@@ -2710,7 +2800,7 @@ def build_risk_segments(modeling_result: dict[str, Any], model_name: str | None 
 def plot_risk_segments(segment_df: pd.DataFrame) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(16, 5))
     sns.barplot(data=segment_df, x="risk_segment", y="leakage_rate", ax=axes[0], palette="Reds")
-    axes[0].set_title("Leakage rate theo risk segment (test 2022)")
+    axes[0].set_title("Leakage rate by risk segment (test 2022)")
     axes[0].set_xlabel("Risk segment")
     axes[0].set_ylabel("Leakage rate")
     axes[0].yaxis.set_major_formatter(PercentFormatter(1.0))
@@ -2718,7 +2808,7 @@ def plot_risk_segments(segment_df: pd.DataFrame) -> None:
         axes[0].text(idx, row.leakage_rate, f"{row.leakage_rate:.1%}", ha="center", va="bottom", fontsize=9)
 
     sns.barplot(data=segment_df, x="risk_segment", y="leakage_value", ax=axes[1], palette="Blues")
-    axes[1].set_title("Leakage value theo risk segment (test 2022)")
+    axes[1].set_title("Leakage value by risk segment (test 2022)")
     axes[1].set_xlabel("Risk segment")
     axes[1].set_ylabel("Leakage value")
     axes[1].yaxis.set_major_formatter(_compact_money_formatter())
@@ -2764,7 +2854,7 @@ def _build_value_action_row(
         "monthly_upside_base": current_leakage_value * base_share / 12,
         "effort": effort,
         "timeline": timeline,
-        "assumption": f"Recovery range {low_share:.0%}-{base_share:.0%}-{high_share:.0%} trên leakage hiện tại của bucket",
+        "assumption": f"Recovery range of {low_share:.0%}-{base_share:.0%}-{high_share:.0%} on the bucket's current leakage value",
         "evidence": evidence,
     }
 
@@ -2789,19 +2879,19 @@ def build_action_plan(
     current_cancel_total = float(current["cancel_leakage"].sum())
     cancel_scope_share = (cancel_scope_leakage / current_cancel_total) if current_cancel_total > 0 else 0.0
     cancel_action = _build_value_action_row(
-        action="Giảm friction COD/cancellation",
+        action="Reduce COD and checkout friction",
         driver="Cancellation friction",
         owner="Checkout + CRM",
-        kpi="Cancel rate của payment method hotspot",
+        kpi="Cancellation rate of the hotspot payment method",
         scope_orders=cancel_scope_orders,
         scope_value=cancel_scope_value,
         current_leakage_value=cancel_scope_leakage,
         effort=2.0,
         recovery_range=(0.08, 0.15, 0.22),
-        timeline="30 ngày: chặn pain point checkout; 60 ngày: CRM nudge; 90 ngày: policy tuning theo source",
+        timeline="30 days: remove checkout pain points; 60 days: deploy CRM nudges; 90 days: tune policy by source",
         evidence=(
-            f"Năm {current_year}: {cancel_hotspot['payment_method']} cancel rate {cancel_scope_rate:.1%} | "
-            f"share of cancel leakage {cancel_scope_share:.1%}"
+            f"Year {current_year}: {cancel_hotspot['payment_method']} cancellation rate {cancel_scope_rate:.1%} | "
+            f"share of cancellation leakage {cancel_scope_share:.1%}"
         ),
     )
 
@@ -2815,19 +2905,19 @@ def build_action_plan(
     size_wrong_size_orders = int(size_scope["wrong_size_return_orders"].gt(0).sum())
     size_wrong_size_rate = (size_wrong_size_orders / size_scope_orders) if size_scope_orders else 0.0
     size_action = _build_value_action_row(
-        action="Size guidance + exchange flow",
+        action="Strengthen size guidance and exchange flow",
         driver="Wrong-size return",
         owner="Merchandising + CX",
-        kpi="Wrong-size refund value / wrong-size rate",
+        kpi="Wrong-size refund value and wrong-size rate",
         scope_orders=size_scope_orders,
         scope_value=size_scope_value,
         current_leakage_value=size_scope_leakage,
         effort=2.5,
         recovery_range=(0.15, 0.25, 0.35),
-        timeline="30 ngày: fit guide; 60 ngày: exchange-first flow; 90 ngày: optimize theo bucket",
+        timeline="30 days: refine fit guidance; 60 days: launch an exchange-first flow; 90 days: optimize by bucket",
         evidence=(
-            f"Năm {current_year}: {top_size['bucket']} wrong-size rate {size_wrong_size_rate:.1%} | "
-            f"refund {_format_vnd_compact(size_scope_leakage)}"
+            f"Year {current_year}: {top_size['bucket']} wrong-size rate {size_wrong_size_rate:.1%} | "
+            f"refund value {_format_vnd_compact(size_scope_leakage)}"
         ),
     )
 
@@ -2848,7 +2938,7 @@ def build_action_plan(
     )
     promo_history_negative_share = float(promo_hotspot["negative_month_share"])
     promo_action = _build_value_action_row(
-        action="Promo guardrail theo bucket",
+        action="Pilot promo guardrails by bucket",
         driver="Promotion erosion (proxy)",
         owner="Growth + Finance",
         kpi="Weighted margin delta promo vs no-promo",
@@ -2857,62 +2947,62 @@ def build_action_plan(
         current_leakage_value=float(max(-promo_margin_delta, 0.0) * max(promo_scope_orders, 1)),
         effort=2.9,
         recovery_range=(0.12, 0.20, 0.28),
-        timeline="30 ngày: freeze pilot bucket xấu; 60 ngày: guardrail margin; 90 ngày: scorecard theo promo bucket",
+        timeline="30 days: freeze the weakest pilot bucket; 60 days: introduce margin guardrails; 90 days: run a bucket-level scorecard",
         evidence=(
-            f"Năm {current_year}: {promo_hotspot['dominant_category']} | {promo_hotspot['order_source']} "
-            f"margin delta {_format_vnd_compact(promo_margin_delta)} trên {promo_scope_orders:,} promo orders | "
-            f"full-history matched months âm {promo_history_negative_share:.0%}"
+            f"Year {current_year}: {promo_hotspot['dominant_category']} | {promo_hotspot['order_source']} "
+            f"margin delta {_format_vnd_compact(promo_margin_delta)} across {promo_scope_orders:,} promo orders | "
+            f"negative matched months across full history {promo_history_negative_share:.0%}"
         ),
     )
 
     review_row = review_queue_df.iloc[0]
     review_action = _build_value_action_row(
-        action="Risk review queue cho high-risk orders",
+        action="Run a high-risk review queue",
         driver="Predictive triage",
         owner="Ops + Risk",
-        kpi="Captured leakage value share trong top review bucket",
+        kpi="Captured leakage value share within the top review bucket",
         scope_orders=int(review_row["selected_orders"]),
         scope_value=float(review_row["queue_scope_value"]),
         current_leakage_value=float(review_row["queue_leakage_value"]),
         effort=3.2,
         recovery_range=(0.05, 0.09, 0.14),
-        timeline="30 ngày: pilot manual review; 60 ngày: SLA queue; 90 ngày: semi-auto risk routing",
+        timeline="30 days: pilot manual review; 60 days: formalize queue SLAs; 90 days: move to semi-automated routing",
         evidence=(
-            f"{review_row['model']} capture {review_row['captured_leakage_value_share']:.1%} "
-            f"leakage value trong top {review_row['review_share']:.0%} orders"
+            f"{review_row['model']} captures {review_row['captured_leakage_value_share']:.1%} "
+            f"of leakage value within the top {review_row['review_share']:.0%} of orders"
         ),
     )
 
     action_df = pd.DataFrame([cancel_action, size_action, review_action, promo_action])
     priority_map = {
-        "Giảm friction COD/cancellation": 1,
-        "Size guidance + exchange flow": 2,
-        "Risk review queue cho high-risk orders": 3,
-        "Promo guardrail theo bucket": 4,
+        "Reduce COD and checkout friction": 1,
+        "Strengthen size guidance and exchange flow": 2,
+        "Run a high-risk review queue": 3,
+        "Pilot promo guardrails by bucket": 4,
     }
     priority_note_map = {
-        "Giảm friction COD/cancellation": "Ưu tiên 1: evidence mạnh + effort thấp",
-        "Size guidance + exchange flow": "Ưu tiên 2: bucket rõ + owner rõ",
-        "Risk review queue cho high-risk orders": "Ưu tiên 3: phù hợp khi capacity review hữu hạn",
-        "Promo guardrail theo bucket": "Ưu tiên 4: triển khai như pilot guardrail vì đây là proxy signal",
+        "Reduce COD and checkout friction": "Priority 1: strongest evidence with low execution effort",
+        "Strengthen size guidance and exchange flow": "Priority 2: clear bucket definition with a clear owner",
+        "Run a high-risk review queue": "Priority 3: best fit when review capacity is limited",
+        "Pilot promo guardrails by bucket": "Priority 4: execute as a controlled pilot because the signal remains a proxy",
     }
     tradeoff_map = {
-        "Giảm friction COD/cancellation": (
-            "Tác động mạnh trên cancel leakage nhưng cần tránh siết checkout quá tay làm giảm conversion."
+        "Reduce COD and checkout friction": (
+            "This action can materially reduce cancellation leakage, but the checkout experience must not become so restrictive that conversion falls."
         ),
-        "Size guidance + exchange flow": (
-            "Ít rủi ro doanh thu hơn promo, nhưng cần phối hợp merchandising + CX để triển khai nhất quán."
+        "Strengthen size guidance and exchange flow": (
+            "This is lower-risk to revenue than a promo intervention, but it requires tight coordination across merchandising and CX."
         ),
-        "Risk review queue cho high-risk orders": (
-            "Cải thiện targeting tốt nhưng đánh đổi bằng capacity review, SLA vận hành và false positive."
+        "Run a high-risk review queue": (
+            "Targeting improves, but the business pays for it through review capacity, operational SLAs, and false positives."
         ),
-        "Promo guardrail theo bucket": (
-            "Có upside margin rõ trên bucket xấu nhưng có rủi ro giảm volume, nên chỉ nên pilot có kiểm soát."
+        "Pilot promo guardrails by bucket": (
+            "The weakest buckets show clear margin upside, but volume can drop if the intervention is too aggressive, so it should remain a controlled pilot."
         ),
     }
     action_df["priority_rank"] = action_df["action"].map(priority_map).fillna(99).astype(int)
-    action_df["priority_note"] = action_df["action"].map(priority_note_map).fillna("Ưu tiên theo recoverable value")
-    action_df["trade_off"] = action_df["action"].map(tradeoff_map).fillna("Ưu tiên theo recoverable value và effort")
+    action_df["priority_note"] = action_df["action"].map(priority_note_map).fillna("Prioritized by recoverable value")
+    action_df["trade_off"] = action_df["action"].map(tradeoff_map).fillna("Prioritized by recoverable value and effort")
     action_df["share_of_year_leakage"] = safe_divide(action_df["recoverable_base_value"], year_leakage_total)
     action_df["share_of_scope_leakage"] = safe_divide(
         action_df["recoverable_base_value"], action_df["current_leakage_value"]
@@ -2947,15 +3037,15 @@ def plot_action_matrix(action_df: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(14, 8))
     ax.scatter(plot_df["effort"], plot_df["recoverable_base_value"], s=280, color="#4E79A7")
     offsets = {
-        "Giảm friction COD/cancellation": (10, 6),
-        "Size guidance + exchange flow": (16, -4),
-        "Risk review queue cho high-risk orders": (14, 4),
-        "Promo guardrail theo bucket": (14, 6),
+        "Reduce COD and checkout friction": (10, 6),
+        "Strengthen size guidance and exchange flow": (16, -4),
+        "Run a high-risk review queue": (14, 4),
+        "Pilot promo guardrails by bucket": (14, 6),
     }
     for row in plot_df.itertuples(index=False):
         dx, dy = offsets.get(row.action, (10, 4))
         ax.annotate(
-            f"{row.action} | {_format_vnd_compact(float(row.monthly_upside_base))}/tháng",
+            f"{row.action} | {_format_vnd_compact(float(row.monthly_upside_base))}/month",
             (row.effort, row.recoverable_base_value),
             xytext=(dx, dy),
             textcoords="offset points",
@@ -2963,7 +3053,7 @@ def plot_action_matrix(action_df: pd.DataFrame) -> None:
             bbox={"boxstyle": "round,pad=0.2", "fc": "white", "alpha": 0.82, "ec": "none"},
         )
     ax.set_title("Action matrix: recoverable leakage value vs effort")
-    ax.set_xlabel("Effort score (1 thấp - 5 cao)")
+    ax.set_xlabel("Effort score (1 low - 5 high)")
     ax.set_ylabel("Recoverable value (base case)")
     ax.yaxis.set_major_formatter(_compact_money_formatter())
     ax.set_xlim(plot_df["effort"].min() - 0.1, plot_df["effort"].max() + 0.45)
@@ -2987,32 +3077,32 @@ def build_executive_summary(
     lines = [
         "## Executive Summary",
         "",
-        "### 1. Điều gì đang xảy ra?",
+        "### 1. What is happening?",
         *[f"- {point}" for point in descriptive_points[:3]],
         "",
-        "### 2. Vì sao đang xảy ra?",
-        "- Các driver dưới đây được nhận diện trên full-history resolved sample; phần action phía dưới được sizing theo scope năm gần nhất để tránh phóng đại upside.",
+        "### 2. Why is it happening?",
+        "- The drivers below were identified on the full-history resolved sample, while the action sizing uses the latest-year scope to avoid overstating upside.",
         *[
             f"- {row['driver']}: {row['quant_signal']} ({row['evidence']})."
             for _, row in root_cause_df.head(3).iterrows()
         ],
         "",
-        "### 3. Triage layer nên vận hành ra sao?",
+        "### 3. How should the triage layer operate?",
         (
-            f"- Dưới ràng buộc review khoảng {top_queue['review_share']:.0%} orders, {top_metrics['model']} capture "
-            f"{top_metrics['captured_leakage_value_share']:.1%} leakage value, nhỉnh hơn "
-            f"{runner_up['model']} ({runner_up['captured_leakage_value_share']:.1%}) nhưng chênh lệch không quá lớn."
+            f"- Under a review capacity of roughly {top_queue['review_share']:.0%} of orders, {top_metrics['model']} captures "
+            f"{top_metrics['captured_leakage_value_share']:.1%} of leakage value, slightly ahead of "
+            f"{runner_up['model']} ({runner_up['captured_leakage_value_share']:.1%}) but without a dramatic margin."
         ),
         (
-            f"- Queue nên ưu tiên high-risk bucket vì leakage rate tại queue đạt {top_queue['queue_leakage_rate']:.1%}; "
-            f"predictive được dùng như lớp triage, không thay thế business rule toàn phần."
+            f"- The queue should prioritize the high-risk bucket because the queue leakage rate reaches {top_queue['queue_leakage_rate']:.1%}; "
+            f"the predictive layer is used as a triage mechanism, not as a full replacement for business rules."
         ),
         "",
-        "### 4. Nên làm gì trong 30-60-90 ngày?",
+        "### 4. What should happen in the next 30-60-90 days?",
         (
-            f"- Các upside bên dưới được sizing trên scope năm gần nhất và nên được đọc như value-at-stake để ưu tiên pilot, "
-            f"không phải forecast cam kết. Tổng base-case của 4 action hiện khoảng "
-            f"{_format_vnd_compact(total_base_recovery)} (~{total_recovery_share:.1%} leakage năm gần nhất)."
+            f"- The upside estimates below are sized on the latest-year scope and should be read as value-at-stake for pilot prioritization, "
+            f"not as a committed forecast. The combined base case across the four actions is currently about "
+            f"{_format_vnd_compact(total_base_recovery)} (~{total_recovery_share:.1%} of the latest year's leakage)."
         ),
         *[
             (
