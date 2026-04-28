@@ -1,0 +1,33 @@
+from src.eda._impl import (
+    build_descriptive_scorecard,
+    build_descriptive_summary,
+    build_dimension_mix,
+    build_fact_tables,
+    build_geography_snapshot,
+    build_monthly_kpis,
+    build_quality_audit,
+    build_quarterly_kpis,
+    build_relation_summary,
+    build_waterfall_summary,
+    load_data,
+    preview_table_bundle,
+    reconcile_with_sales,
+    set_plot_theme,
+)
+
+__all__ = [
+    "build_descriptive_scorecard",
+    "build_descriptive_summary",
+    "build_dimension_mix",
+    "build_fact_tables",
+    "build_geography_snapshot",
+    "build_monthly_kpis",
+    "build_quality_audit",
+    "build_quarterly_kpis",
+    "build_relation_summary",
+    "build_waterfall_summary",
+    "load_data",
+    "preview_table_bundle",
+    "reconcile_with_sales",
+    "set_plot_theme",
+]
