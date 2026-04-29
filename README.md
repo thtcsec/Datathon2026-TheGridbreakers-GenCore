@@ -27,6 +27,7 @@
 │   ├── 01_MCQ_Solver.ipynb
 │   ├── 02_EDA_Prescriptive_Analysis.ipynb
 │   ├── 03_Forecasting_Model.ipynb
+│   ├── 09_Kaggle_Submission_v6_Auxiliary.ipynb # Pipeline Prophet (Aux) + LGBM
 │   └── baseline.ipynb
 ├── src/
 │   ├── preprocessing.py  # Xử lý & gộp bảng dữ liệu thô
