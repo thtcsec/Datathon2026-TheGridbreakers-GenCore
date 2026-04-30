@@ -155,34 +155,40 @@ print(f'Submission saved → {path}')
 ---
 
 ## 🔍 Key Insights
-- [Phát hiện 1]: (Sẽ cập nhật sau quá trình EDA)
-- [Phát hiện 2]: (Sẽ cập nhật sau quá trình EDA)
-- [Phát hiện 3]: (Sẽ cập nhật sau quá trình EDA)
+- **Feature Importance Trap**: Mô hình XGBoost/LightGBM ban đầu dùng biến đồng thời (web_traffic, daily_orders) → CV MAE 417k nhưng LB MAE 2M. Nguyên nhân: các biến này không tồn tại trong giai đoạn dự báo 548 ngày.
+- **Naive364 là backbone mạnh nhất**: Seasonal Naive với lookback 364 ngày (bảo toàn DOW) đạt MAE ~775k trên holdout — vượt trội so với Prophet đơn lẻ (~1.1M).
+- **Optimal blend = Naive 60% + Corrected 40%**: LGB residual correction có giá trị khi được damped đúng cách.
+- **Tết Nguyên Đán là yếu tố quyết định**: Doanh thu tăng mạnh 3-4 tuần trước Tết, giảm sâu trong tuần Tết. Calibration strength tối ưu: Revenue=0.05, COGS=0.10.
+- **Mega-sales (11.11, 12.12, 30/4-1/5)**: Tạo spike doanh thu 2-3x, cần xử lý riêng biệt.
 
 ---
 
 ## 🚀 Model Performance
-Kết quả dự báo trên tập validation (TimeSeriesSplit CV):
+Kết quả dự báo trên tập holdout 548 ngày (2021-07-02 → 2022-12-31), 64 cấu hình đã thử:
 
-| Chỉ số | Kết quả |
-| :--- | :--- |
-| **MAE** | ... |
-| **RMSE** | ... |
-| **R²** | ... |
-| **MAPE** | ...% |
-| **sMAPE** | ...% |
+| Target | MAE | RMSE | R² | Best Config |
+| :--- | ---: | ---: | ---: | :--- |
+| **Revenue** | 752,155 | 1,039,000 | 0.552 | Naive 60% + Corrected 40%, Tết=0.05 |
+| **COGS** | 658,584 | 907,000 | 0.548 | Naive 60% + Corrected 40%, Tết=0.10 |
+
+**Kiến trúc mô hình (Zero-Leakage):**
+1. **Seasonal Naive 364** (backbone 60%): Lookback 364 ngày + window median + trend adjustment
+2. **LightGBM + XGBoost Residual** (correction 40%): Sửa sai số naive, features deterministic, damped exp(-h/400)
+3. **Tết Calibration**: Empirical multipliers từ 13 năm lịch sử
+4. **SHAP Explainability**: Top features = hist_month_median, tet_effect, lag_1yr, DOW median
 
 ---
 
 ## 🛠️ Ràng buộc & Đặc điểm Kỹ thuật
 Dự án được xây dựng dựa trên các quy định sau:
--   **Đơn vị tiền tệ**: Sử dụng VND (Tỷ giá tham chiếu: 1 USD ≈ 25,450 VND).
+-   **Đơn vị tiền tệ**: VND (1 USD ≈ 25,450 VND).
 -   **Dữ liệu**: Không sử dụng nguồn dữ liệu bên ngoài.
--   **Rò rỉ dữ liệu (Leakage)**: Không sử dụng giá trị Revenue hay COGS của tập test để làm đặc trưng huấn luyện.
--   **Validation**: TimeSeriesSplit (walk-forward CV) — không dùng random split.
--   **Mô hình**: XGBoost & LightGBM với hyperparameter tuning bằng Optuna (Bayesian TPE sampler).
--   **Đánh giá**: MAE, RMSE, R², MAPE, sMAPE — so sánh với baseline (Mean, Seasonal Naive).
--   **Môi trường**: Python 3.13+, Pandas, NumPy, Scikit-learn, XGBoost, LightGBM, Optuna.
+-   **Rò rỉ dữ liệu (Leakage)**: Zero-leakage — tất cả features deterministic tại thời điểm dự báo.
+-   **Validation**: 548-day holdout matching Kaggle test horizon.
+-   **Mô hình**: Seasonal Naive + LightGBM/XGBoost Residual Ensemble + Tết Calibration.
+-   **Explainability**: SHAP values + Feature Importance plots.
+-   **Đánh giá**: MAE (primary), RMSE, R².
+-   **Môi trường**: Python 3.13+, Pandas, NumPy, Scikit-learn, LightGBM, XGBoost, Prophet, SHAP.
 
 ---
 *Mã nguồn dành cho cuộc thi VinUniversity Datathon 2026.*
