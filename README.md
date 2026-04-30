@@ -156,22 +156,27 @@ print(f'Submission saved → {path}')
 ---
 
 ## 🔍 Key Insights
-- [Phát hiện 1]: (Sẽ cập nhật sau quá trình EDA)
-- [Phát hiện 2]: (Sẽ cập nhật sau quá trình EDA)
-- [Phát hiện 3]: (Sẽ cập nhật sau quá trình EDA)
+- **Feature Importance Trap**: Mô hình ban đầu (XGBoost/LightGBM) sử dụng biến đồng thời (web_traffic, daily_orders) → CV MAE 417k nhưng LB MAE 2M. Nguyên nhân: các biến này không tồn tại trong giai đoạn dự báo 548 ngày.
+- **Naive364 là backbone mạnh nhất**: Seasonal Naive với lookback 364 ngày (bảo toàn DOW) đạt MAE ~775k trên holdout 548 ngày — vượt trội so với Prophet đơn lẻ (~1.1M).
+- **Prophet weight ≈ 0**: Trong ensemble tối ưu, Prophet không đóng góp trực tiếp. Hybrid (Prophet + LGB residual) chỉ chiếm 20-25% weight, phần lớn giá trị đến từ LGB correction.
+- **Tết Nguyên Đán là yếu tố quyết định**: Doanh thu tăng mạnh 3-4 tuần trước Tết, giảm sâu trong tuần Tết. Calibration với strength=0.10 cho kết quả tốt nhất.
+- **Mega-sales (11.11, 12.12, 30/4-1/5)**: Tạo spike doanh thu lớn, cần xử lý riêng biệt trong mô hình.
 
 ---
 
 ## 🚀 Model Performance
-Kết quả dự báo trên tập validation (TimeSeriesSplit CV):
+Kết quả dự báo trên tập holdout 548 ngày (2021-07-02 → 2022-12-31):
 
-| Chỉ số | Kết quả |
-| :--- | :--- |
-| **MAE** | ... |
-| **RMSE** | ... |
-| **R²** | ... |
-| **MAPE** | ...% |
-| **sMAPE** | ...% |
+| Target | MAE | RMSE | R² | Best Blend |
+| :--- | ---: | ---: | ---: | :--- |
+| **Revenue** | 746,176 | 1,025,347 | 0.5517 | Naive 75% + Hybrid 25% |
+| **COGS** | 659,624 | 907,481 | 0.5480 | Naive 80% + Hybrid 20% |
+
+**Kiến trúc mô hình (Zero-Leakage):**
+1. **Seasonal Naive 364** (backbone): Lookback 364 ngày + window median blend + trend adjustment
+2. **Prophet Ensemble** (2 configs): Logistic growth, multiplicative seasonality, Tết holidays
+3. **LightGBM Residual Corrector**: Sửa sai số của Prophet, features hoàn toàn deterministic
+4. **Tết Calibration**: Empirical multipliers từ 13 năm lịch sử, strength=0.10
 
 ---
 
@@ -179,11 +184,11 @@ Kết quả dự báo trên tập validation (TimeSeriesSplit CV):
 Dự án được xây dựng dựa trên các quy định sau:
 -   **Đơn vị tiền tệ**: Sử dụng VND (Tỷ giá tham chiếu: 1 USD ≈ 25,450 VND).
 -   **Dữ liệu**: Không sử dụng nguồn dữ liệu bên ngoài.
--   **Rò rỉ dữ liệu (Leakage)**: Không sử dụng giá trị Revenue hay COGS của tập test để làm đặc trưng huấn luyện.
--   **Validation**: TimeSeriesSplit (walk-forward CV) — không dùng random split.
--   **Mô hình**: XGBoost & LightGBM với hyperparameter tuning bằng Optuna (Bayesian TPE sampler).
--   **Đánh giá**: MAE, RMSE, R², MAPE, sMAPE — so sánh với baseline (Mean, Seasonal Naive).
--   **Môi trường**: Python 3.13+, Pandas, NumPy, Scikit-learn, XGBoost, LightGBM, Optuna.
+-   **Rò rỉ dữ liệu (Leakage)**: Zero-leakage architecture — tất cả features đều deterministic tại thời điểm dự báo.
+-   **Validation**: 548-day holdout (matching Kaggle test horizon) — không dùng random split.
+-   **Mô hình**: Seasonal Naive + Prophet + LightGBM Residual Ensemble, tối ưu blend weights + Tết strength.
+-   **Đánh giá**: MAE (primary), RMSE, R² — so sánh với baseline (Naive364, Prophet, Hybrid).
+-   **Môi trường**: Python 3.13+, Pandas, NumPy, Scikit-learn, Prophet, LightGBM, Optuna.
 
 ---
 *Mã nguồn dành cho cuộc thi VinUniversity Datathon 2026.*
