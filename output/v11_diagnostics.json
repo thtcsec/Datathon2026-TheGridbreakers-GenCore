@@ -1,0 +1,25 @@
+{
+  "version": "v11_breakthrough",
+  "best_configs": {
+    "Revenue": {
+      "mae": 812743.1908924332,
+      "config": {
+        "w_naive": 0.9,
+        "w_theta": 0.1,
+        "w_ets": 0,
+        "tet": 0.1
+      }
+    },
+    "COGS": {
+      "mae": 674970.469253531,
+      "config": {
+        "w_naive": 0.9,
+        "w_theta": 0.1,
+        "w_ets": 0,
+        "tet": 0.0
+      }
+    }
+  },
+  "sample_sub_rev_mean": 3249795.418503649,
+  "our_rev_mean": 3332987.0779579617
+}
