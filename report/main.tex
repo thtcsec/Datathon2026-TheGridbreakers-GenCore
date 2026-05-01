@@ -7,13 +7,13 @@
 \usepackage{amsmath}
 \usepackage{enumitem}
 
-\title{Breaking Business Boundaries: Revenue Forecasting for Vietnamese Fashion E-Commerce}
+\title{Breaking Business Boundaries:\\Revenue Forecasting for Vietnamese Fashion E-Commerce}
 \author{
-  Team GenCore ---
-  Trinh Hoang Tu (Leader, HUFLIT),
-  Nguyen Tan Thang (HCMUS),
-  Nguyen Trong Huong (UEH),
-  Nguyen Minh Nhut (UEH) \\
+  Team GenCore\\[4pt]
+  Trinh Hoang Tu (Leader, HUFLIT) \quad
+  Nguyen Tan Thang (HCMUS)\\
+  Nguyen Trong Huong (UEH) \quad
+  Nguyen Minh Nhut (UEH)\\[4pt]
   \texttt{Team Code: YdHJLESH3WgWYCgY8nnb}
 }
 \date{Datathon 2026 --- VinUniversity}
@@ -22,90 +22,97 @@
 \maketitle
 
 \begin{abstract}
-We present a zero-leakage forecasting pipeline for predicting daily revenue and cost of goods sold (COGS) over a 548-day horizon for a Vietnamese fashion e-commerce platform. Our approach combines Seasonal Naive baselines with a Prophet + LightGBM residual correction ensemble, calibrated for Vietnamese Lunar New Year (T\'\ecircumflex{}t) dynamics. On a 548-day holdout matching the Kaggle test horizon, we achieve MAE of 752k VND (Revenue) and 659k VND (COGS), with R\textsuperscript{2} $\approx$ 0.55. We provide prescriptive business insights from exploratory analysis of 14 datasets spanning 10 years of operations.
+We present a zero-leakage forecasting pipeline for predicting daily Revenue and COGS over a 548-day horizon (Jan 2023--Jul 2024) for a Vietnamese fashion e-commerce platform. Our approach combines Seasonal Naive baselines with LightGBM/XGBoost residual correction, calibrated for Tet Nguyen Dan dynamics. On a 548-day holdout, we achieve MAE of 752k VND (Revenue) and 659k VND (COGS). We also provide prescriptive business insights from exploratory analysis of 14 datasets spanning 10 years of operations.
 \end{abstract}
 
-% ══════════════════════════════════════════════════════════════════
-\section{Introduction \& Business Context}
+%% ════════════════════════════════════════════════════════════════
+\section{Part 2: EDA and Prescriptive Analysis}
+%% ════════════════════════════════════════════════════════════════
 
-This report addresses the Datathon 2026 challenge: forecasting daily revenue for a Vietnamese fashion e-commerce company from January 1, 2023 to July 1, 2024 (548 days), using historical data from July 2012 to December 2022.
+\subsection{Business Objective}
 
-The business context demands accurate daily forecasts to optimize inventory allocation, plan promotional campaigns, and manage logistics across Vietnam. The dataset comprises 14 CSV files organized into four layers: Master (products, customers, promotions, geography), Transaction (orders, order items, payments, shipments, returns, reviews), Analytical (daily sales), and Operational (monthly inventory, daily web traffic).
+We analyze 14 CSV files (646k orders, 714k line items, 121k customers, 2.4k products) to answer: \textit{where is realized revenue being eroded, and which interventions should be prioritized?}
 
-\textbf{Key challenge:} The 548-day forecast horizon creates a severe distribution shift problem. Standard ML models trained on contemporaneous features (web traffic, daily orders) achieve excellent cross-validation scores but catastrophically fail on the actual test set because these features are unavailable during the forecast period.
+\subsection{Data Quality Audit}
 
-% ══════════════════════════════════════════════════════════════════
-\section{Exploratory Data Analysis \& Prescriptive Insights}
+All 14 tables were audited. Key findings: zero missing values in the sales target; 80\% missing in \texttt{applicable\_category} (promotions table); 12.5\% of orders lack shipment records (cancelled). Foreign key integrity is preserved across all joins. Revenue outliers (169 IQR-flagged days) correspond to legitimate mega-sale events and were retained.
 
-\subsection{Revenue Leakage Analysis}
+\subsection{Revenue Leakage Drivers}
 
-Our EDA focused on answering: \textit{where is realized revenue being eroded, and which interventions should be prioritized?} We identified three primary leakage drivers:
+Three primary leakage drivers were identified:
 
 \begin{enumerate}[leftmargin=*,itemsep=2pt]
-  \item \textbf{Cancellation friction:} 12.5\% of orders are cancelled, with credit card payments showing the highest cancellation rate. Recommendation: implement order confirmation SMS within 30 minutes of placement.
-  \item \textbf{Wrong-size returns:} ``wrong\_size'' is the dominant return reason in Streetwear category. Recommendation: deploy a size recommendation engine using purchase history.
-  \item \textbf{Promotion erosion:} 39\% of order items use promotions, but discount depth does not proportionally increase order volume. Recommendation: cap discount depth at 25\% and shift budget to targeted campaigns.
+  \item \textbf{Cancellation friction (12.5\% of orders):} Credit card payments show the highest cancellation rate. \textit{Action:} implement order confirmation SMS within 30 minutes.
+  \item \textbf{Wrong-size returns:} Dominant return reason in Streetwear. \textit{Action:} deploy a size recommendation engine using purchase history.
+  \item \textbf{Promotion erosion:} 39\% of items use promotions, but discount depth does not proportionally increase volume. \textit{Action:} cap discount at 25\%, shift budget to retention.
 \end{enumerate}
 
 \subsection{Temporal Patterns}
 
-Revenue exhibits strong seasonality driven by:
 \begin{itemize}[leftmargin=*,itemsep=2pt]
-  \item \textbf{Weekly cycle:} Weekdays consistently outperform weekends by 15--20\%.
-  \item \textbf{T\'\ecircumflex{}t Nguy\^en \DJ\'an:} Revenue surges 3--4 weeks before Lunar New Year, then drops sharply during the holiday week as logistics shut down.
-  \item \textbf{Mega-sales:} Double-digit days (9.9, 10.10, 11.11, 12.12) and national holidays (30/4--1/5) create 2--3$\times$ revenue spikes.
-  \item \textbf{End-of-month pattern:} Revenue peaks around the last 3--5 days of each month, likely driven by salary cycles.
+  \item \textbf{Weekly cycle:} Weekdays outperform weekends by 15--20\%.
+  \item \textbf{Tet Nguyen Dan:} Revenue surges 3--4 weeks pre-Tet, drops sharply during the holiday week.
+  \item \textbf{Mega-sales:} 9.9, 10.10, 11.11, 12.12, and 30/4--1/5 create 2--3x spikes.
+  \item \textbf{End-of-month:} Revenue peaks in the last 3--5 days, driven by salary cycles.
 \end{itemize}
 
-\subsection{Data Quality}
+\subsection{Prescriptive Recommendations (30-60-90 Day Roadmap)}
 
-All 14 tables were audited for completeness, referential integrity, and outliers. Key findings: zero missing values in the sales target; 80\% missing in \texttt{applicable\_category} (promotions); 12.5\% of orders lack shipment records (cancelled orders). Foreign key integrity is preserved across all joins.
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+  \item \textbf{30 days:} Deploy order confirmation SMS; cap promo depth at 25\%.
+  \item \textbf{60 days:} Launch size recommendation for Streetwear; pre-position inventory 4 weeks before Tet.
+  \item \textbf{90 days:} Build customer segmentation model for targeted retention campaigns.
+\end{itemize}
 
-% ══════════════════════════════════════════════════════════════════
-\section{Forecasting Methodology}
+%% ════════════════════════════════════════════════════════════════
+\section{Part 3: Forecasting Pipeline and Results}
+%% ════════════════════════════════════════════════════════════════
+
+\subsection{Problem Definition}
+
+Forecast daily Revenue and COGS for 548 days (Jan 1, 2023 -- Jul 1, 2024) using historical data from Jul 2012 to Dec 2022. Evaluation metrics: MAE (primary), RMSE, and R$^2$.
 
 \subsection{The Feature Importance Trap}
 
-Our initial approach used XGBoost/LightGBM with contemporaneous features (web traffic, daily orders, inventory levels). This achieved CV MAE of 417k VND but Kaggle MAE of 2M VND---a 5$\times$ degradation. The root cause: tree models learned to map concurrent states rather than temporal dependencies. When these features are unavailable during the 548-day forecast, recursive substitution causes exponential error accumulation.
+Our initial XGBoost/LightGBM models used contemporaneous features (web traffic, daily orders, inventory). This achieved CV MAE of 417k but Kaggle MAE of 2M---a 5x degradation. Root cause: these features are unavailable during the 548-day forecast period. Recursive substitution causes exponential error accumulation.
 
 \subsection{Zero-Leakage Architecture}
 
-We redesigned the pipeline with a strict constraint: \textit{every feature must be deterministically computable for any future date without access to future data}. The architecture has three tiers:
+We redesigned the pipeline with a strict constraint: \textit{every feature must be deterministically computable for any future date}.
 
-\textbf{Tier 1: Seasonal Naive Backbone (60\% weight).} A blend of (a) 364-day lookback naive (preserving day-of-week alignment), and (b) multi-year DOY/DOW median, adjusted by year-over-year growth rate. This provides a stable, zero-leakage baseline.
+\textbf{Tier 1 --- Seasonal Naive Backbone (60\%):}
+Blend of 364-day lookback naive (DOW-preserving) and multi-year DOY/DOW median, adjusted by YoY growth rate.
 
-\textbf{Tier 2: Prophet + LightGBM Residual Correction (40\% weight).} Prophet (logistic growth, multiplicative seasonality, custom T\'\ecircumflex{}t holidays) generates trend and seasonal components. LightGBM corrects Prophet's residuals using only deterministic features: Fourier terms, calendar indicators, T\'\ecircumflex{}t proximity, mega-sale flags, historical month/DOW profiles, and auxiliary data aggregated as static profiles. Residual corrections are damped exponentially ($e^{-h/400}$) at far horizons to prevent tree-model extrapolation artifacts.
+\textbf{Tier 2 --- LightGBM + XGBoost Residual Correction (40\%):}
+LightGBM and XGBoost correct naive residuals using only deterministic features: Fourier terms (4 yearly + 2 weekly harmonics), calendar indicators, Tet proximity features, mega-sale flags, historical month/DOW profiles, and auxiliary data as static aggregations. Corrections are damped exponentially ($e^{-h/400}$) at far horizons.
 
-\textbf{Tier 3: T\'\ecircumflex{}t Calibration.} Empirical multipliers computed from 13 years of T\'\ecircumflex{}t-relative revenue profiles (day $-30$ to $+20$ relative to T\'\ecircumflex{}t), applied with optimized strength (Revenue: 0.05, COGS: 0.10).
+\textbf{Tier 3 --- Tet Calibration:}
+Empirical multipliers from 13 years of Tet-relative revenue profiles (day $-30$ to $+20$), applied with optimized strength (Revenue: 0.05, COGS: 0.10).
 
-\subsection{Feature Engineering}
+\subsection{Feature Engineering (Zero-Leakage Verified)}
 
-All features are zero-leakage verified:
 \begin{itemize}[leftmargin=*,itemsep=1pt]
-  \item \textbf{Calendar:} month, DOW, DOY, quarter, weekend, month-start/end flags
-  \item \textbf{Fourier:} $\sin/\cos$ harmonics for yearly (4 orders) and weekly (2 orders) cycles
-  \item \textbf{T\'\ecircumflex{}t:} days-to-T\'\ecircumflex{}t, days-since-T\'\ecircumflex{}t, exponential proximity, pre/post window flags
-  \item \textbf{Mega-sales:} binary flags with $\pm$2 day windows for 9.9, 10.10, 11.11, 12.12, 30/4--1/5
-  \item \textbf{Historical profiles:} month$\times$DOW median revenue, DOY median, rolling tail statistics
-  \item \textbf{Auxiliary:} web traffic and order count medians by month/DOW (static aggregations)
+  \item \textbf{Calendar:} month, DOW, DOY, quarter, weekend, month-start/end
+  \item \textbf{Fourier:} $\sin/\cos$ harmonics for yearly and weekly cycles
+  \item \textbf{Tet:} days-to-Tet, days-since-Tet, exponential proximity, window flags
+  \item \textbf{Mega-sales:} binary flags with $\pm$2 day windows
+  \item \textbf{Historical profiles:} month$\times$DOW median, DOY median, rolling tail stats
+  \item \textbf{Auxiliary:} web traffic and order count medians by month/DOW (static)
   \item \textbf{Trend:} linear regression projection from historical data
 \end{itemize}
 
 \subsection{Validation Strategy}
 
-We use a purged 548-day holdout (2021-07-02 to 2022-12-31) matching the exact Kaggle test horizon length. This ensures our CV score is directly comparable to leaderboard performance, eliminating the CV--LB gap that plagued our initial approach.
+We use a purged 548-day holdout (Jul 2, 2021 -- Dec 31, 2022) matching the Kaggle test horizon exactly. This eliminates the CV--LB gap from our initial approach. We tested 64 configurations across blend weights, Tet strengths, and training windows.
 
-% ══════════════════════════════════════════════════════════════════
-\section{Results \& Model Explainability}
-
-\subsection{Holdout Performance}
+\subsection{Results}
 
 \begin{table}[H]
 \centering
-\caption{548-day holdout validation results (best configuration)}
+\caption{548-day holdout validation (best of 64 configurations)}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Target} & \textbf{MAE (VND)} & \textbf{RMSE (VND)} & \textbf{R\textsuperscript{2}} \\
+\textbf{Target} & \textbf{MAE (VND)} & \textbf{RMSE (VND)} & \textbf{R$^2$} \\
 \midrule
 Revenue & 752,155 & 1,039,000 & 0.552 \\
 COGS    & 658,584 &   907,000 & 0.548 \\
@@ -113,39 +120,36 @@ COGS    & 658,584 &   907,000 & 0.548 \\
 \end{tabular}
 \end{table}
 
-The optimal blend is Naive 60\% + Corrected 40\% for both targets, with mild T\'\ecircumflex{}t calibration (strength 0.05--0.10). Prophet's direct weight optimized to near zero, confirming that its primary value is as a feature generator for the LightGBM residual corrector rather than as a standalone forecaster.
+Optimal blend: Naive 60\% + Corrected 40\% for both targets. Prophet's direct weight optimized to near zero---its value is as a feature generator, not a standalone forecaster.
 
 \subsection{Feature Importance (SHAP Analysis)}
 
-SHAP analysis of the LightGBM residual corrector reveals the top drivers of forecast corrections:
+SHAP analysis of the LightGBM residual corrector reveals the top drivers:
 
 \begin{enumerate}[leftmargin=*,itemsep=2pt]
-  \item \textbf{Historical month median} (\texttt{hist\_m\_med}): Captures seasonal revenue level differences across months.
-  \item \textbf{T\'\ecircumflex{}t effect} (\texttt{tet\_effect}): Exponential proximity to Lunar New Year drives the largest individual corrections.
-  \item \textbf{1-year lag} (\texttt{lag\_1yr}): Same-period-last-year revenue provides strong signal for residual correction.
-  \item \textbf{Day-of-week median} (\texttt{hist\_d\_med}): Weekday vs.\ weekend revenue differential.
-  \item \textbf{Fourier terms} (\texttt{sin\_y1}, \texttt{cos\_y1}): Annual cyclical patterns captured by first-order harmonics.
+  \item \textbf{Historical month median} --- seasonal revenue level.
+  \item \textbf{Tet effect} --- exponential proximity to Lunar New Year.
+  \item \textbf{1-year lag} --- same-period-last-year revenue.
+  \item \textbf{DOW median} --- weekday vs.\ weekend differential.
+  \item \textbf{Fourier terms} --- annual cyclical patterns.
 \end{enumerate}
 
-Full SHAP summary and bar plots are provided in the GitHub repository (\texttt{output/shap\_*.png}).
+Full SHAP summary and bar plots are in the GitHub repository (\texttt{output/shap\_*.png}).
 
 \subsection{Error Analysis}
 
-Error is concentrated in two segments: (1) \textbf{Mega-sale spikes} (30/4--1/5, end-of-month), where the model underestimates peak amplitude; (2) \textbf{Q2--Q3 normal period}, where the model slightly over-predicts due to structural differences between 2021--2022 validation and 2023--2024 test dynamics. Distribution shift between holdout and test remains the primary risk factor.
+Errors concentrate in: (1) mega-sale spikes (model underestimates peak amplitude); (2) Q2--Q3 normal period (slight over-prediction due to structural differences between holdout and test periods). Distribution shift remains the primary risk.
 
-% ══════════════════════════════════════════════════════════════════
-\section{Conclusion \& Recommendations}
+%% ════════════════════════════════════════════════════════════════
+\section{Conclusion}
+%% ════════════════════════════════════════════════════════════════
 
-We demonstrated that for long-horizon e-commerce forecasting, simple seasonal baselines outperform complex ML models when contemporaneous features are unavailable. Our zero-leakage architecture achieves stable 548-day forecasts by combining the robustness of Seasonal Naive with the pattern-correction capability of gradient boosting.
+For long-horizon e-commerce forecasting, simple seasonal baselines outperform complex ML models when contemporaneous features are unavailable. Our zero-leakage architecture achieves stable 548-day forecasts by combining Seasonal Naive robustness with gradient boosting pattern correction.
 
-\textbf{Business recommendations:}
-\begin{enumerate}[leftmargin=*,itemsep=2pt]
-  \item Implement size recommendation to reduce wrong-size returns (est.\ 8\% revenue recovery).
-  \item Cap promotion discount depth at 25\% and reallocate budget to retention campaigns.
-  \item Pre-position inventory 4 weeks before T\'\ecircumflex{}t based on the empirical demand surge profile.
-  \item Deploy order confirmation within 30 minutes to reduce cancellation rate.
-\end{enumerate}
+\textbf{Reproducibility:} All code is available at:
 
-\textbf{Reproducibility:} All code is available at \url{https://github.com/thtcsec/Datathon2026-TheGridbreakers-GenCore}. Random seed is fixed at 42. The full pipeline runs in $\sim$90 seconds on a standard laptop.
+\url{https://github.com/thtcsec/Datathon2026-TheGridbreakers-GenCore}
+
+Random seed is fixed at 42. Full pipeline runs in approximately 90 seconds.
 
 \end{document}
