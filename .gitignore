@@ -15,6 +15,7 @@ __pycache__/
 *.pyc
 *venv/
 output/*.csv
+output/*_log.txt
 .vscode/
 .idea/
 local_docs/
