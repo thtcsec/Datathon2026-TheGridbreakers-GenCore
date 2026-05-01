@@ -1,0 +1,357 @@
+﻿Advanced Strategies for Long-Horizon Time Series Forecasting: A Framework for E-Commerce Revenue Prediction
+Executive Summary
+The task of forecasting daily revenue and cost of goods sold (COGS) for a Vietnamese fashion e-commerce company over a 548-day horizon presents a formidable challenge in the domain of predictive analytics. Extrapolating continuous daily data from January 1, 2023, to July 1, 2024, requires navigating the complex intersections of long-term trend continuation, highly volatile seasonal dynamics, and rigorous constraints on data availability. The discrepancy between a cross-validation Mean Absolute Error (MAE) of 417,000 VND and an actual test set MAE of 2,000,000 VND is a textbook manifestation of catastrophic distribution shift. This divergence is driven primarily by the "feature importance trap"—a phenomenon where a model develops a heavy reliance on highly predictive contemporaneous variables (such as daily_orders or web_traffic) that are entirely unavailable during the out-of-sample forecast period.
+When a machine learning architecture heavily leverages contemporaneous data, it learns to map concurrent states rather than temporal dependencies. In a long-horizon scenario extending across 548 days, attempting to substitute missing future features with recursive predictions causes an aggressive, compounding accumulation of error, rapidly degrading the forecast into statistical noise.1 To correct this failure and optimize toward the top leaderboard score of approximately 602,000 VND, the modeling paradigm must transition from standard tabular regression to pure time-series extrapolation and hybrid machine learning architectures that do not leak future information.
+This comprehensive research report provides an expert-level roadmap for dismantling the 2,000,000 VND MAE and constructing a robust 548-day forecasting engine. It addresses the mathematical optimization of the MAE metric, evaluates fundamental zero-leakage baselines to immediately stabilize predictions, and provides a granular comparative analysis of statistical methods (Facebook Prophet, SARIMAX, Exponential Smoothing, Theta) alongside deep learning forecasters (NeuralProphet, N-BEATS). Furthermore, it outlines robust multi-step forecasting architectures, defines safe feature engineering practices (including the utilization of web traffic as lagged features and the integration of complex Vietnamese calendar dynamics), and prescribes state-of-the-art ensembling techniques utilized by top-tier competitors in Kaggle Datathons.2
+1. Diagnostic Analysis: The Feature Importance Trap and Error Accumulation
+The root cause of the massive train-test performance gap lies in the structural differences between how gradient boosting frameworks, such as XGBoost and LightGBM, process tabular data versus how dynamic temporal systems evolve over time.
+In a standard tabular regression setup, if a variable like daily_orders constitutes 50% of the model's feature importance, the decision trees rely on the precise daily fluctuations of this variable to split nodes and calculate leaf weights.4 During the training phase, the exact historical value of daily_orders is known. During the 548-day forecast period, however, the actual value of daily_orders does not exist. If the architecture recursively predicts daily_orders for day   , and then uses that auxiliary prediction to forecast revenue for day   , the revenue forecast inherits both the variance and the bias of the order forecast.5
+By day   , the predicted daily_orders diverge significantly from reality. By day   , the inputs fed into the LightGBM model are statistically unrecognizable compared to the training distribution. The tree logic falls into unseen regions of the feature space, leading to wild extrapolations or flatlining outputs.1 Furthermore, tree-based models cannot mathematically extrapolate trends beyond the minimum or maximum values observed in their training targets.7 If revenue is expected to grow over the 548 days, a pure XGBoost model will cap its predictions at the historical maximum observed in the 2012–2022 data, introducing a massive structural bias that guarantees a poor MAE.
+1.1 The Mathematical Implications of the MAE Metric
+The competition's primary evaluation metric is Mean Absolute Error (MAE), supplemented by Root Mean Squared Error (RMSE) and R-squared (  ). Understanding the specific mathematical optimization function of the MAE metric is a critical prerequisite for algorithm design.9
+The formulation of MAE is defined as the average of the absolute differences between forecasted and actual values:
+  
+
+Unlike RMSE, which disproportionately penalizes large outliers and mathematically optimizes for the mean of the target distribution, MAE optimizes for the median.10 E-commerce revenue data is frequently highly skewed, punctuated by massive spike days (e.g., mega-sales, holidays, clearance events) and long tails of average baseline performance. Models optimized using Mean Squared Error (MSE) objective functions will attempt to split the difference between normal days and massive outlier days, resulting in predictions that are persistently too high for average days and too low for spike days.10
+To minimize MAE directly, the forecasting architecture must use a median-seeking objective function during training.12 Statistical models should be tuned to absolute error rather than squared error, and tree-based models must explicitly have their objective parameter set to regression_l1 (L1 loss) or use quantile regression at the 50th percentile (median). When evaluating model performance across validation folds, using MAE will ensure that the model is rewarded for establishing a robust baseline trend rather than attempting to perfectly fit unpredictable noise.
+2. Quick Wins: Establishing Robust Baselines
+Before constructing complex hybrid architectures and deep learning models, it is absolutely necessary to establish zero-leakage baselines. These baselines serve a dual purpose: they immediately rectify the 2,000,000 VND MAE by providing a mathematically safe 548-day trajectory, and they serve as independent input variables in later ensemble models.13
+2.1 The Seasonal Naive Forecaster
+The simplest, yet often highly competitive, baseline for retail forecasting is the Seasonal Naive approach.13 Because consumer purchasing behavior operates on a rigid 7-day weekly cycle, forecasting exactly the same value that occurred one year prior is highly effective. To maintain the precise alignment of the days of the week, the lookback period must be exactly 364 days (which is perfectly divisible by 7), rather than the standard 365 calendar days.
+The mathematical formulation for a 364-day Seasonal Naive baseline is:
+  
+
+For a 548-day horizon, the first 364 days of the forecast pull directly from the final year of historical training data. The subsequent 184 days (days 365 through 548) will pull from the forecasts generated in the first period. This recursive lookup ensures that a Tuesday is always mapped to a Tuesday, preserving weekly seasonality without requiring any machine learning parameters to be tuned.15 Implementing a Seasonal Naive baseline is practically guaranteed to reduce a severely overfit 2,000,000 VND MAE down to a structurally sounder baseline, frequently achieving sub-1,000,000 VND MAE independently on Kaggle leaderboards.
+2.2 Simple Moving Averages and Rolling Medians
+To smooth out historical anomalies—such as a random one-off promotion or a localized stockout from the prior year that would otherwise be blindly repeated by the Seasonal Naive method—a Rolling Median Seasonal Naive baseline can be employed.
+Instead of taking the exact value from   , this baseline takes the median of a local window of historical seasonal equivalents, such as   ,   , and   . This provides a smoothed, robust expectation of the target period that is entirely immune to the feature importance trap.14 Given that MAE optimizes for the median, using a rolling median baseline aligns perfectly with the competition's primary evaluation metric.
+2.3 Last-Year-Same-Day Adjustments
+A more sophisticated baseline involves taking the Seasonal Naive forecast and adjusting it by a global growth rate. If the total revenue of 2022 was 15% higher than the total revenue of 2021, the base Seasonal Naive forecast can be uniformly multiplied by 1.15 to account for macro-level business expansion. This "Trend-Adjusted Seasonal Naive" model often serves as the benchmark that complex machine learning models struggle to beat in the early stages of a Datathon.
+3. Statistical and Deep Learning Forecasters: A Comparative Analysis
+When only the target's own history is reliably available for the forecast horizon, the problem collapses into a pure univariate time-series forecasting task.16 The following models represent the core paradigms available for generating 500+ day horizons, comparing traditional statistical methods against modern deep learning algorithms.
+3.1 Facebook Prophet
+Prophet is fundamentally a decomposable generalized additive model (GAM) formulated around trend, seasonality, and holidays.18
+  
+
+*   : Piecewise linear or logistic growth curve for modeling non-periodic changes in the time series. It automatically detects changepoints in the historical data.
+*   : Periodic changes (e.g., weekly, monthly, and yearly seasonality) modeled using Fourier series.
+*   : The effects of holidays which occur on potentially irregular schedules, providing specific windows of influence before and after the event.
+Viability for 548 Days: Prophet is exceptionally well-suited for long horizons.20 Because it models time as a continuous mathematical regressor rather than relying on sequential autoregressive historical lags, it does not suffer from recursive error accumulation. It simply projects the fitted Fourier terms and trend lines forward into the future.19 Furthermore, it handles missing data and large outliers robustly. However, Prophet often underfits local, short-term dynamics, acting more as a macro-smoothing mechanism than a highly precise daily forecaster.21 It will form the backbone of a successful Kaggle solution, but rarely wins on its own.
+3.2 SARIMAX (Seasonal Auto-Regressive Integrated Moving Average with eXogenous factors)
+SARIMAX models the autocorrelation of a series using past lags (  ), differencing to achieve stationarity (  ), and past forecast errors (  ), while adding a seasonal component (  ).22 It represents the gold standard of classical econometric forecasting.
+Viability for 548 Days: While mathematically rigorous and powerful for short-to-medium horizons, SARIMAX is notoriously fragile for 500+ step forecasts.23 Because the AR (Auto-Regressive) and MA (Moving Average) components rely heavily on recent lags, a 548-day forecast quickly converges to a flat line (the mean of the differenced series) or a simple, unvarying repeating seasonal wave.22 Additionally, tuning SARIMA parameters for a 10-year dataset (3,833 rows) using brute-force search techniques like auto_arima is computationally exorbitant and prone to overfitting the training period.24 For pure long-term extrapolation, SARIMAX is generally outclassed by Prophet in both ease of use and stability over multi-year horizons.
+3.3 Exponential Smoothing (ETS)
+ETS models time series via a combination of Error, Trend, and Seasonality, applying exponentially decreasing weights to older observations. This ensures that recent data points have a exponentially higher influence on the forecast than data from a decade ago.16
+Viability for 548 Days: ETS is highly reactive to recent data. While this makes it excellent for 1-to-30 day horizons, it is fundamentally detrimental for a 548-day horizon.25 The exponentially weighted decay means that historical structural patterns from years prior are heavily discounted. If the final 30 days of the training set (December 2022) experienced a localized downward trend due to a supply chain issue, ETS will aggressively extrapolate that downward trend across the entire 548-day forecast, leading to catastrophic under-prediction.
+3.4 The Theta Method
+The Theta method, originally introduced in the M3-Competition where it performed exceptionally well, operates by decomposing the original time series into two or more modified lines, called Theta lines. These lines maintain the same mean and linear regression slope as the original data but modify the local curvatures. Typically, the method combines a simple linear regression line (to capture the long-term trend) with Simple Exponential Smoothing applied to a deseasonalized version of the data.
+Viability for 548 Days: The Theta method is remarkably robust and computationally cheap. Because it explicitly separates the long-term linear trend from local volatility, it performs exceptionally well as a long-horizon baseline. While it lacks the flexibility of Prophet regarding custom holiday effects, implementing a Theta model alongside Seasonal Naive provides a highly stable anchor for the predictions, ensuring the model does not diverge wildly over the 18-month forecast.
+3.5 NeuralProphet
+NeuralProphet bridges the gap between Prophet's interpretable GAM structure and modern Deep Learning. It retains the    framework but utilizes PyTorch as a backend to optimize via Gradient Descent. Crucially, it introduces AR-Net to capture autoregressive lag dynamics without the rigid assumptions of ARIMA.26
+Viability for 548 Days: NeuralProphet is highly viable on Kaggle and handles multivariate inputs elegantly.27 It resolves Prophet's inability to capture local autocorrelations while maintaining the ability to project long-term seasonal trends via its base GAM structure.20 However, research indicates that while NeuralProphet excels on sub-daily data (e.g., minute-by-minute IoT sensor data), its performance on standard daily retail data is comparable to—and sometimes slightly worse than—finely tuned traditional statistical methods or advanced tree ensembles.25 It remains a powerful tool, but requires careful regularization of the AR components to prevent recursive degradation over 548 days.
+3.6 N-BEATS (Neural Basis Expansion Analysis for Time Series)
+N-BEATS is a pure deep learning architecture specifically designed for univariate time-series forecasting. It utilizes deep stacks of fully connected layers with doubly residual links (both forward and backward connections) to decompose the time series into interpretable trend and seasonality components entirely via neural network weights, without relying on traditional time-series decomposition formulas.28
+Viability for 548 Days: N-BEATS is immensely powerful and frequently features in winning Kaggle solutions (such as the M5 forecasting competition).29 It performs exceptionally well over long horizons because its fully connected architecture learns global basis functions rather than relying strictly on step-by-step recurrent cells like Long Short-Term Memory (LSTM) networks, which suffer from vanishing memory and state degradation over 500+ steps.30 The primary drawback is computational complexity; training N-BEATS requires PyTorch/TensorFlow expertise and careful tuning of the lookback multiplier (typically setting the historical lookback window to    to    the length of the forecast horizon).28
+Model
+	Long-Horizon Strengths
+	Long-Horizon Weaknesses
+	Kaggle Viability
+	Prophet
+	No recursive error, mathematically continuous, excellent handling of shifting holidays.
+	Underfits local variations, trend changepoints can be overly sensitive.
+	Very High (as a feature generator or base model).
+	SARIMAX
+	Strong theoretical foundation, captures complex autocorrelations well.
+	Extrapolates to a flat line rapidly, hard to tune, strict stationarity requirements.
+	Low for 500+ days.
+	ETS
+	Excellent short-term reactivity and tracking.
+	Discards long-term structural history, poor trend extrapolation over 18 months.
+	Low.
+	Theta Method
+	Highly robust, computationally cheap, prevents wild divergence.
+	Lacks native support for complex exogenous regressors and irregular holidays.
+	Moderate (best as an ensemble anchor).
+	NeuralProphet
+	Combines Prophet's stability with AR-Net's local precision, PyTorch optimization.
+	Substantial computational overhead, AR components can still suffer recursive decay.
+	High.
+	N-BEATS
+	State-of-the-art Deep Learning for univariate series, global pattern recognition.
+	Requires heavy computational resources, difficult to debug and interpret.
+	Very High (but complex to implement).
+	4. Multi-Step Forecasting Architectures for 500+ Days
+When deploying Machine Learning models (like LightGBM, XGBoost, or CatBoost) for time series, the architecture dictating how the model forecasts into the future is equally as critical as the algorithm itself. Top Kaggle competitors abandon standard recursive approaches for horizons of this magnitude.2
+4.1 Recursive Multi-Step Strategy
+In this approach, a single model is trained to predict    using features up to time   . To predict   , the model's prediction for    is appended to the input features. This repeats 548 times sequentially.1
+   * Failure Point: As experienced in the initial 2,000,000 VND MAE attempt, recursive forecasting suffers from exponential error accumulation.1 If day 1 is over-predicted, that over-prediction becomes a historical lag feature for day 2, causing an even larger error, eventually decoupling the model entirely from reality.6
+4.2 Direct Multi-Step Strategy (DMS)
+The direct approach trains a completely separate model for every single time step in the forecast horizon.1
+   * Model 1 forecasts    using   
+   * Model 2 forecasts    using   
+   * ...
+   * Model 548 forecasts    using   
+   * Strengths: Zero error accumulation. Each model optimizes for its specific horizon, leveraging only deterministically known historical features.1
+   * Weaknesses: Training 548 distinct LightGBM models is computationally prohibitive and discards the temporal dependencies between adjacent days (e.g., Model 400 does not know what Model 399 predicted, leading to jagged, discontinuous forecast lines).5
+4.3 DirRec (Direct-Recursive Hybrid) Strategy
+A combination of the direct and recursive strategies: train a separate model for each step, but use the forecasts from the previous step's model as new lag features for the next step's model.6 While theoretically sound, it shares the immense computational burden of the Direct strategy and reintroduces a milder form of the recursive error accumulation. It is rarely the optimal choice for a 548-step horizon.
+4.4 The "Horizon-as-a-Feature" Global Model Strategy
+A highly effective hybrid technique popularized in modern Kaggle competitions (such as the M5 Forecasting Accuracy and VN2 inventory challenges) is the Global Model with Horizon.3 Instead of building 548 separate models, a single model is trained, but the target    is defined at various horizons, and the exact horizon    is passed as an explicit numerical feature to the algorithm.33
+  
+
+Here,    contains only features that are known at the forecast origin (e.g., macro trends, static seasonalities, and calendar events for day   ), and    is an integer ranging from 1 to 548. The model learns how the target behavior changes as the prediction horizon extends.34 This approach provides the stability and zero-leakage benefits of the Direct strategy without the crippling computational cost of training 548 models.3
+5. Feature Engineering for Pure Time-Series Extrapolation
+To eliminate the train/test distribution shift, the model must be completely purged of features that leak future states. If a feature cannot be deterministically known on December 31, 2022, for the future date of July 1, 2024, it cannot be used as a contemporaneous feature.8
+5.1 Safely Utilizing Auxiliary Data: Web Traffic, Orders, and Inventory
+The prompt explicitly asks how to use auxiliary data from the 15 CSV files (such as web_traffic, daily_orders, inventory, returns) without causing a distribution shift. Because these metrics will not exist in the 548-day forecast period, they cannot be used on the same row as the target prediction unless heavily modified.
+Method 1: Long-Term Static Aggregations (Cluster Features)
+Rather than using web_traffic_lag_1, aggregate the historical auxiliary data into static contextual features that describe the fundamental nature of the business or product category, which are assumed to remain constant or evolve predictably.
+      * historical_monthly_avg_traffic: The average traffic for January across all historical years.
+      * return_rate_profile: The overall historical ratio of returns to sales.
+By flattening dynamic variables into static historical profiles, the model gains context about the volume and behavior of the platform without relying on volatile day-to-day fluctuations.
+Method 2: The Direct Multi-Step Input (DMS)
+If utilizing the Direct Multi-Step architecture (or the Horizon-as-a-Feature model), the auxiliary data from the forecast origin (December 31, 2022) can be used to predict the future.
+For example, to predict revenue for March 1, 2023 (Horizon = 60), the model uses the actual web_traffic from December 31, 2022. While traffic from 60 days prior has low predictive power for daily spikes, calculating rolling windows leading up to the forecast origin (e.g., web_traffic_rolling_mean_30days_prior_to_origin) provides the model with the macroeconomic momentum of the business at the moment the forecast was generated.
+Method 3: Auxiliary Forecasting (Sequential Decoupling)
+A highly advanced technique involves training entirely separate Prophet models to forecast the web_traffic and inventory metrics for the 548 days. The outputs of these secondary Prophet models are then fed as inputs into the primary LightGBM revenue model. This accurately simulates the future without leaking actual ground truth.
+5.2 Fourier Transformations for Seasonality
+To capture the cyclic nature of revenue without relying on historical revenue lags, time should be encoded mathematically.26 Standard cyclical encoding using ordinal numbers (e.g., day_of_week from 1 to 7, month_of_year from 1 to 12) creates false boundaries. For example, December is 12 and January is 1, implying a large mathematical distance to a decision tree, when in reality they are adjacent.
+Fourier terms map these cycles onto continuous sine and cosine waves, resolving the boundary issue 26:
+  
+
+  
+
+  
+
+  
+
+These features are deterministically knowable for any date in the 548-day future. They provide gradient boosting models with perfect seasonal mappings without any data leakage, effectively transforming a tree-based model into a harmonic regressor.35
+5.3 Piecewise Trend Features
+Because tree-based models cannot extrapolate values beyond their historical limits 7, explicit trend features must be provided to allow the model to scale its predictions over time. Instead of passing a simple contiguous integer (day_number from 1 to 4381), map a linear regression line through the historical revenue, project that line into the 548-day future, and feed the numerical value of that regression line as a feature to the GBDT.7 This provides the tree model with a continuously ascending numerical anchor, allowing it to scale its percentage-based adjustments relative to an ascending baseline rather than hitting an absolute historical ceiling.
+6. Vietnamese Market Dynamics and Holiday Effects
+In Vietnamese retail and e-commerce forecasting, accurately modeling Lunar New Year (Tết Nguyên Đán) and major digital sales days is non-negotiable.37 Missing these events will skew the MAE dramatically, as they represent the highest variance periods in the dataset.
+6.1 The Lunar Calendar and Tết Dynamics
+Tết operates on the lunisolar calendar, meaning its Gregorian date shifts annually, typically falling anywhere between late January and mid-February.40 Crucially, the "Tết effect" in e-commerce is not a single day. The retail landscape experiences a massive, sustained surge in the 3 to 4 weeks preceding the holiday as consumers purchase new clothing, gifts, and home supplies.39 Conversely, revenue drops to near absolute zero during the actual days of Tết, as logistics networks shut down, couriers pause operations, and the population travels to home provinces.37
+Year
+	Gregorian Date of Tết
+	Zodiac Animal
+	2020
+	January 25
+	Rat
+	2021
+	February 12
+	Buffalo
+	2022
+	February 1
+	Tiger
+	2023 (Forecast)
+	January 22
+	Cat
+	2024 (Forecast)
+	February 10
+	Dragon
+	Table 1: Recent and forecasted dates for Tết Nguyên Đán, illustrating the significant Gregorian shift.40
+To capture this complex behavior in a pure time-series model, continuous categorical features must be constructed relative to the specific date of Tết each year:
+         * days_until_tet: A countdown integer ranging from -30 to 0. This is highly correlative with pre-holiday revenue spikes.46
+         * days_since_tet: A countup integer ranging from 0 to 15. This is highly correlative with a drop in returns and subdued traffic as the market recovers.
+         * is_tet_holiday: A Boolean indicator for the official 7-day state holiday period.47
+Python's lunarcalendar or holidays libraries can automatically map these dates into the dataframe, ensuring that the shifting nature of the holiday is perfectly aligned in both the training data and the 548-day forecast.49
+6.2 E-Commerce Mega-Sales Days
+The Vietnamese market, similar to the broader Southeast Asian digital economy, heavily participates in regional e-commerce festivals. Unlike Western markets dominated by Black Friday, Southeast Asian fashion retail is driven by synchronized double-digit sales days.52
+         * 9.9 (Sept 9): Marks the start of the autumn online shopping season.53
+         * 10.10 (Oct 10): Official Mega Sales Day, created by the Vietnam E-commerce Agency.52
+         * 11.11 (Nov 11): Singles' Day. Originally a Chinese holiday, it is now consistently the highest volume online sales day of the year in Vietnam.52
+         * 12.12 (Dec 12): Year-end clearance and final holiday push.38
+Explicit boolean flags (e.g., is_11_11, is_mega_sale) must be engineered for these specific dates. Furthermore, generating surrounding context features (is_pre_sale_3_days, is_post_sale_3_days) helps the model capture the distinct dip in revenue immediately preceding a sale (as consumers hold their cash waiting for discounts) and the spike in returns immediately after.55
+7. Robust Validation Strategies for 500+ Day Forecasts
+The validation framework must identically simulate the constraints of the final 548-day test set. Standard K-Fold Cross Validation—which randomly shuffles rows of data—leaks future information into the past, rendering it entirely useless for time series and resulting in the false 417,000 VND CV score experienced in the initial attempt.56
+7.1 Purged Time-Series Split (Expanding Window)
+The most rigorous methodology is an expanding window time-series split with a terminal validation set exactly matching the length of the forecast horizon.56
+Given the historical data runs from July 4, 2012, to December 31, 2022:
+         * Validation Set: July 2, 2021 – December 31, 2022 (Exactly 548 days)
+         * Training Set: July 4, 2012 – July 1, 2021
+         * Gap: To prevent any lagged features from leaking across the boundary, a gap equal to the maximum lag size should be introduced between the train and validation sets.56 However, if pure time-series features (like Fourier terms and calendar data) are utilized without autoregressive lags, the gap can safely be set to zero.
+The model is trained strictly on the Training Set. If the out-of-sample validation MAE achieved on this 548-day holdout closely matches the Kaggle leaderboard score, the distribution shift has been successfully neutralized, and the model architecture is sound.
+7.2 Training History Length: Full 10-Year vs. Recent Years
+In time series forecasting, more data does not necessarily yield better forecasts. The Vietnamese e-commerce sector in 2012 operated under vastly different macroeconomic, technological, and logistical conditions than it did in 2022.54 Including data from 2012 to 2017 may introduce archaic structural bias that actively harms the model's ability to extrapolate 2023 trends.25
+Furthermore, the COVID-19 pandemic (2020-2021) caused unprecedented, permanent structural disruptions in supply chains and digital adoption rates across Southeast Asia.54 Top Kaggle solutions often implement sample weighting, where recent years (2019-2022) are assigned exponentially higher weights during the training loss calculation, forcing the gradient boosting algorithm to prioritize modern market dynamics over outdated baselines.3
+An ablation study should be run locally: train one model on the full 10-year dataset and another purely on data from 2018–2022, comparing their performance on the 548-day holdout. In fast-moving e-commerce datasets, the truncated dataset frequently produces superior MAE scores.
+8. Ensemble Strategies: Stacking Prophet and GBDTs
+The absolute highest tier of Kaggle time-series solutions involves the synergistic ensembling of structural mathematical models (Prophet/ARIMA) with gradient boosted trees (LightGBM/XGBoost).2 This ensures that the weaknesses of one algorithm are masked by the strengths of the other.
+8.1 Prophet as a Feature Extractor (Stacking Architecture)
+LightGBM excels at modeling complex, non-linear interactions (e.g., "If it is Tuesday AND 3 days before Tết AND a promotion is active, spike revenue by 40%").7 However, it cannot extrapolate continuous growth. Prophet excels at mapping long-term growth and stable seasonality, but struggles with complex interactions.62
+To combine them without target leakage, Prophet is used as an advanced feature generator 60:
+         1. Train Prophet on the historical revenue data.
+         2. Generate out-of-sample predictions for both the historical training period and the 548-day future.
+         3. Extract Prophet's underlying components: yhat (the raw prediction), trend (the macro ascending/descending line), yearly_seasonality, and weekly_seasonality.60
+         4. Feed these extracted numerical vectors as standard columns into the LightGBM model.60
+By adopting this architecture, LightGBM is no longer asked to predict raw absolute revenue from scratch. Instead, it predicts the residual variations around the Prophet baseline.7 Because Prophet handles the heavy lifting of the multi-year upward trend and the rigid seasonal curves, LightGBM is freed to optimize purely for the localized holiday spikes and contextual exogenous features without risking wild extrapolation.7
+8.2 Horizon-Weighted Averaging
+Even with stacked features, tree models tend to degrade faster than statistical models as the forecast horizon extends deeper into the future.4 To combat this, predictions from separate models can be blended dynamically based on the length of the horizon.63
+For a prediction at step   :
+  
+
+Where    decreases linearly (or exponentially) from 0.8 at    down to 0.2 at   , while    increases inversely.2 This asserts a logical premise: in the short term, LightGBM's localized precision is highly trusted, but as the forecast ventures deep into July 2024, the conservative, mathematically constrained trajectory of Prophet dominates the ensemble, insulating the overall MAE from tree-based hallucinations.64
+9. Practical Implementations and Code Patterns
+Translating these theoretical concepts into a Kaggle-compatible Python environment requires specific architectural patterns optimized for speed, stability, and zero-leakage constraints.
+9.1 Automating SARIMAX Baselines (pmdarima)
+While not recommended as the primary 548-day forecaster, SARIMAX is a valuable ensemble component if heavily regularized. Tuning parameters manually across 3,833 rows is inefficient. The pmdarima library mimics R's robust auto.arima() functionality, running an optimized stepwise search across    configurations to minimize the Akaike Information Criterion (AIC).24
+
+
+Python
+
+
+
+
+import pmdarima as pm
+
+# Note: Execute on a downsampled or weekly aggregated subset to avoid memory exhaustion
+# Auto-ARIMA handles differencing (d) automatically for non-stationary data.
+model = pm.auto_arima(train_revenue, 
+                     seasonal=True, m=7, # 7 for weekly seasonality
+                     stepwise=True, suppress_warnings=True, 
+                     error_action="ignore", max_p=3, max_q=3)
+
+# Forecast the 548-day horizon directly
+forecast = model.predict(n_periods=548)
+
+9.2 Integrating Vietnamese Holidays into Prophet
+Prophet allows for the ingestion of custom regional calendars. While the base holidays Python package covers standard Vietnamese dates, manually defining the Tết windows ensures the critical pre-Tết shopping surge and post-Tết logistics freeze are explicitly captured by the model.18
+
+
+Python
+
+
+
+
+from prophet import Prophet
+import pandas as pd
+
+# Manually construct the critical Tet windows for training and forecast periods
+tet_dates = pd.DataFrame({
+ 'holiday': 'tet',
+ 'ds': pd.to_datetime(['2012-01-23', '2013-02-10', '2014-01-31', '2015-02-19', 
+                       '2016-02-08', '2017-01-28', '2018-02-16', '2019-02-05', 
+                       '2020-01-25', '2021-02-12', '2022-02-01', '2023-01-22', 
+                       '2024-02-10']),
+ 'lower_window': -21, # Capture the 3-week pre-Tet shopping surge
+ 'upper_window': 7    # Capture the post-Tet return to normalcy
+})
+
+# Initialize Prophet with L1-like robustness to outliers
+m = Prophet(holidays=tet_dates, 
+           yearly_seasonality=True, 
+           weekly_seasonality=True,
+           changepoint_prior_scale=0.05) # Tuning parameter for trend flexibility
+m.fit(train_df)
+
+# Create the future dataframe and predict
+future = m.make_future_dataframe(periods=548, freq='D')
+forecast = m.predict(future)
+
+9.3 Generating the 548-Day Submission File
+Errors in Kaggle index alignments will silently invalidate an otherwise perfect forecasting model. Constructing a flawless continuous daily date range for the exact forecast period prevents timeline misalignment penalties and ensures the data integrates perfectly with the Kaggle scoring backend.68
+
+
+Python
+
+
+
+
+import pandas as pd
+
+# Generate continuous daily index for the exact test boundary
+forecast_dates = pd.date_range(start='2023-01-01', end='2024-07-01', freq='D')
+
+# Construct the submission dataframe
+submission = pd.DataFrame({
+   'date': forecast_dates,
+   'Revenue': final_predictions # Array of 548 predictions
+})
+
+# Sanity check: Ensure exact row count matches Kaggle requirements
+assert len(submission) == 548, f"Submission length mismatch. Expected 548, got {len(submission)}"
+
+# Export without the dataframe index
+submission.to_csv('submission.csv', index=False)
+
+10. Actionable Roadmap for Kaggle Competition Success
+The initial 2,000,000 VND MAE achieved via recursive GBDTs demonstrates the inherent danger of applying traditional tabular machine learning logic to deep temporal forecasting tasks.1 Extricating the model from the feature importance trap requires stripping away all contemporaneous dependencies and building an architecture founded exclusively on deterministic future states (calendar events, Fourier seasonalities, and mathematically projected trends).8
+To rapidly close the gap from 2,000,000 VND toward the 602,000 VND leaderboard top score within a constrained 3-to-4 day window, the following execution roadmap is ranked by expected impact and ease of implementation:
+Phase 1: Immediate Remediation (Target: Sub-1,000,000 MAE) Abandon the recursive XGBoost and LightGBM models entirely to halt error accumulation. Implement a pure Seasonal Naive baseline (  ) combined with a base Prophet model.13 Map the shifting Vietnamese Tết calendar into Prophet using a 21-day lower_window to capture the unique shopping surge.18 This removes all future-leaking features and instantly stabilizes the long-term forecast trajectory.
+Phase 2: Structural Integrity and Validation Establish a 548-day holdout validation set covering July 2, 2021, to December 31, 2022.56 Optimize models exclusively against the MAE metric on this specific holdout. Run an ablation study to truncate the training data, removing data prior to 2018. This prevents archaic, pre-COVID consumer behaviors from diluting the modern trend, frequently resulting in a sharper, more accurate projection of the 2023 business state.3
+Phase 3: Advanced Feature Engineering (Zero Leakage) Replace standard ordinal date logic with Fourier cyclical transformations to map weekly and annual sine/cosine waves mathematically.26 Engineer explicit boolean flags for 9.9, 10.10, 11.11, and 12.12 mega-sales events.53 Aggregate the provided auxiliary data (web_traffic, inventory) into static historical profiles (e.g., historical_monthly_avg_traffic) rather than using daily autoregressive lags, ensuring the GBDT model has rich contextual data without requiring recursive forecasting.
+Phase 4: Ensemble Mastery (Target: 602,000 MAE) Deploy a Stacking architecture.60 Extract the trend, yhat, and seasonality components from the Prophet predictions. Feed these components as the primary predictive features into a LightGBM model, utilizing regression_l1 (MAE) as the objective function.60 Implement a horizon-weighted average during the final blend: shift trust toward LightGBM for the first 30 to 60 days, and smoothly transition to 100% Prophet reliance for days 300 through 548 to insulate the score from tree-based degradation.63
+By strictly enforcing a zero-leakage feature environment and structurally blending the macro-stability of Bayesian GAMs with the non-linear event precision of decision trees, the forecasting architecture will align with state-of-the-art methodology, fundamentally resolving the distribution shift and maximizing Kaggle leaderboard performance.
+Nguồn trích dẫn
+         1. Recursive MultiStep Time Series Forecasting - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/ahmedabdulhamid/recursive-multistep-time-series-forecasting
+         2. 1st Place Solution | Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/competitions/rohlik-sales-forecasting-challenge-v2/discussion/563215
+         3. One Global Model, Many Behaviors: Stockout-Aware Feature Engineering and Dynamic Scaling for Multi-Horizon Retail Demand Forecasting with a Cost-Aware Ordering Policy (VN2 Winner Report) - ResearchGate, truy cập vào tháng 4 27, 2026, https://www.researchgate.net/publication/400118308_One_Global_Model_Many_Behaviors_Stockout-Aware_Feature_Engineering_and_Dynamic_Scaling_for_Multi-Horizon_Retail_Demand_Forecasting_with_a_Cost-Aware_Ordering_Policy_VN2_Winner_Report
+         4. Comparative Analysis of Machine Learning Models for Multi-Horizon PM2.5 Forecasting - Research Square, truy cập vào tháng 4 27, 2026, https://assets-eu.researchsquare.com/files/rs-8724199/v1_covered_53f1bafd-1c08-4f1a-a3c9-5cbfd7373062.pdf
+         5. Recursive and direct multi-step forecasting: the best of both worlds - Rob J Hyndman, truy cập vào tháng 4 27, 2026, https://robjhyndman.com/papers/rectify.pdf
+         6. Forecasting With Machine Learning - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/georgezoto/forecasting-with-machine-learning
+         7. Hybrid Models - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/ryanholbrook/hybrid-models
+         8. ElasTST: Towards Robust Varied-Horizon Forecasting with Elastic Time-Series Transformer, truy cập vào tháng 4 27, 2026, https://proceedings.neurips.cc/paper_files/paper/2024/file/d7aa002885ccbe68cf6880da583761b2-Paper-Conference.pdf
+         9. A study of forecasts in Financial Time Series using Machine Learn- ing methods - Diva-portal.org, truy cập vào tháng 4 27, 2026, https://www.diva-portal.org/smash/get/diva2:1671481/FULLTEXT01.pdf
+         10. MSE V/S MAE V/S RMSE - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/discussions/questions-and-answers/542025
+         11. Forecast evaluation for data scientists: common pitfalls and best practices - PMC, truy cập vào tháng 4 27, 2026, https://pmc.ncbi.nlm.nih.gov/articles/PMC9718476/
+         12. An Evaluation of Deep Learning Models for Stock Market Trend Prediction - arXiv, truy cập vào tháng 4 27, 2026, https://arxiv.org/html/2408.12408v1
+         13. Seasonal naive forecasts - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/bsouhaib/seasonal-naive-forecasts
+         14. Time Series Forecasting Made Simple (Part 2): Customizing Baseline Models, truy cập vào tháng 4 27, 2026, https://towardsdatascience.com/time-series-forecasting-made-simple-part-2-customizing-baseline-models/
+         15. Seasonal Naive Forecasting - Paul Morgan, truy cập vào tháng 4 27, 2026, https://www.pmorgan.com.au/tutorials/seasonal-naive-forecasting/
+         16. Intro to Time Series Forecasting - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/iamleonie/intro-to-time-series-forecasting
+         17. TimeSeries Analysis A Complete Guide - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/andreshg/timeseries-analysis-a-complete-guide
+         18. Seasonality, Holiday Effects, And Regressors | Prophet - Meta Open Source, truy cập vào tháng 4 27, 2026, https://facebook.github.io/prophet/docs/seasonality,_holiday_effects,_and_regressors.html
+         19. Tutorial: Time Series Forecasting with Prophet - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/prashant111/tutorial-time-series-forecasting-with-prophet
+         20. Time Series Forecasting Method Selection Guide – Which Model Should You Use? - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/discussions/general/586700
+         21. I built a Python library that combines Prophet + XGBoost/LightGBM for hybrid time series forecasting : r/learnmachinelearning - Reddit, truy cập vào tháng 4 27, 2026, https://www.reddit.com/r/learnmachinelearning/comments/1squbh4/i_built_a_python_library_that_combines_prophet/
+         22. ARIMA vs SARIMA vs SARIMAX vs Prophet for Time Series Forecasting - Kishan A - Medium, truy cập vào tháng 4 27, 2026, https://kishanakbari.medium.com/arima-vs-sarima-vs-sarimax-vs-prophet-for-time-series-forecasting-a59d3cc932a3
+         23. SARIMAX beats Prophet, y'all - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/thilananhnguyn/sarimax-beats-prophet-y-all
+         24. Sales Forecasting with Real World Data - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/justozner/sales-forecasting-with-real-world-data
+         25. [D] Fool me once, shame on you; fool me twice, shame on me: Exponential Smoothing vs. Facebook's Neural-Prophet. - Reddit, truy cập vào tháng 4 27, 2026, https://www.reddit.com/r/MachineLearning/comments/wqrw8x/d_fool_me_once_shame_on_you_fool_me_twice_shame/
+         26. NeuralProphet Time Series Forecasting Tutorial - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/chirag9073/neuralprophet-time-series-forecasting-tutorial
+         27. Time Series Forecasting: ARIMA, Prophet, LSTMs & NeuralProphet | Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/discussions/getting-started/586310
+         28. N-BEATS for Time Series Forecasting - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/antonellomartiello/n-beats-for-time-series-forecasting
+         29. Store Sales - Time Series Forecasting - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/c/store-sales-time-series-forecasting/discussion/278554
+         30. 1st place solution | Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/competitions/web-traffic-time-series-forecasting/writeups/arthur-suilin-1st-place-solution
+         31. A New Method for Multi-Horizon Forecasting with Tree-based Models - AH Technology, truy cập vào tháng 4 27, 2026, https://blog.ah.technology/a-new-method-for-multi-horizon-forecasting-with-tree-based-models-7276ae5f9636
+         32. M5 Forecasting - Accuracy | Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/c/m5-forecasting-accuracy/discussion/139461
+         33. Hedge fund - Time series forecasting | Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/competitions/ts-forecasting/discussion/668854
+         34. Chapter 1: Understanding time series forecasting | by Saurav - Medium, truy cập vào tháng 4 27, 2026, https://medium.com/@writeronepagecode/chapter-1-understanding-time-series-forecasting-bb1765a26dd3
+         35. Feature Engineering in Time Series Forecasting : An Empirical Study Using German Electricity Load Data - ScienceOpen, truy cập vào tháng 4 27, 2026, https://www.scienceopen.com/hosted-document?doi=10.14293/PR2199.002316.v1
+         36. Learn Time Series - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/learn/time-series
+         37. Unlock Your Retail Growth For Vietnam's 2026 Holiday Season, truy cập vào tháng 4 27, 2026, https://www.vietnam-briefing.com/news/unlock-your-retail-growth-for-vietnams-2026-holiday-season.html/
+         38. When do Vietnam's Top eCommerce Shopping Events Take Place? - Janio, truy cập vào tháng 4 27, 2026, https://www.janio.asia/resources/articles/major-e-commerce-shopping-events-vietnam
+         39. A traveller's guide to Tet holiday | Vietnam Tourism, truy cập vào tháng 4 27, 2026, https://vietnam.travel/things-to-do/tet-vietnam-lunar-new-year
+         40. Tet 2026: Vietnamese Lunar New Year - My Vietnam Visa, truy cập vào tháng 4 27, 2026, https://www.myvietnamvisa.com/vietnamese-lunar-new-year-dates-animals-of-the-zodiac.html
+         41. Tết - Wikipedia, truy cập vào tháng 4 27, 2026, https://en.wikipedia.org/wiki/T%E1%BA%BFt
+         42. Vietnamese consumers prefer planned shopping during Tết season - Vietnam News, truy cập vào tháng 4 27, 2026, https://vietnamnews.vn/economy/1765528/vietnamese-consumers-prefer-planned-shopping-during-tet-season.html
+         43. Vietnamese New Year: A Guide to Celebrations around the World - Remitly, truy cập vào tháng 4 27, 2026, https://www.remitly.com/blog/lifestyle-culture/vietnamese-new-year/
+         44. When is Tet Holiday in Vietnam? - Calendarific, truy cập vào tháng 4 27, 2026, https://calendarific.com/holiday/vietnam/tet-holiday-1
+         45. Holidays and Observances in Vietnam in 2024 - Time and Date, truy cập vào tháng 4 27, 2026, https://www.timeanddate.com/holidays/vietnam/2024
+         46. Google reveals Tet 2026 trends: Vietnamese consumers leverage AI for smarter celebrations - Vietnam Economic Times, truy cập vào tháng 4 27, 2026, https://en.vneconomy.vn/google-reveals-tet-2026-trends-vietnamese-consumers-leverage-ai-for-smarter-celebrations.htm
+         47. Public holidays in Vietnam - Wikipedia, truy cập vào tháng 4 27, 2026, https://en.wikipedia.org/wiki/Public_holidays_in_Vietnam
+         48. A Guide to Public Holiday's and Leaves in Vietnam, truy cập vào tháng 4 27, 2026, https://www.vietnam-briefing.com/doing-business-guide/vietnam/human-resources-and-payroll/a-guide-to-public-holiday-s-in-vietnam
+         49. LunarCalendar - PyPI, truy cập vào tháng 4 27, 2026, https://pypi.org/project/LunarCalendar/
+         50. bopo/LunarCalendar-1: A lunar calendar converter in Python, including 24 solar terms and a number of solar holidays and lunar holidays, mainly from China. - GitHub, truy cập vào tháng 4 27, 2026, https://github.com/bopo/LunarCalendar-1
+         51. Python Could Know Your Holidays No Matter Which Country You Live, truy cập vào tháng 4 27, 2026, https://towardsdatascience.com/python-could-know-your-holidays-no-matter-which-country-you-live-ea0f9ce61719/
+         52. Vietnamese Holiday Calendar For Retailers You Should Know - EFEX, truy cập vào tháng 4 27, 2026, https://efex.vn/en/blog/vietnamese-holiday-calendar
+         53. When Do Vietnam's Top E-commerce Shopping Events Take Place? - Medium, truy cập vào tháng 4 27, 2026, https://medium.com/janio-asia/when-do-vietnams-top-e-commerce-shopping-events-take-place-e1958591f52a
+         54. 12.12 Shopping Event Breaks Records, SEA E-commerce At An All-Time High - The Appnext Blog, truy cập vào tháng 4 27, 2026, https://blog.appnext.com/12-12-shopping-event-breaks-records-sea-e-commerce-at-an-all-time-high/
+         55. Digital promotions reshape Vietnam's e-commerce race, truy cập vào tháng 4 27, 2026, https://en.vietnamplus.vn/digital-promotions-reshape-vietnams-e-commerce-race-post332979.vnp
+         56. How does Validation work for Time-Series Forecasting? - Data Science Stack Exchange, truy cập vào tháng 4 27, 2026, https://datascience.stackexchange.com/questions/137847/how-does-validation-work-for-time-series-forecasting
+         57. All You Need to Know About Time Series - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/rafsunahmad/all-you-need-to-know-about-time-series
+         58. Web Traffic Time Series Forecasting - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/c/web-traffic-time-series-forecasting/discussion/39367
+         59. Purged Time Series CV, XGBoost, Optuna - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/marketneutral/purged-time-series-cv-xgboost-optuna
+         60. Boost Your Time Series Forecasts Combining Gradient Boosting Models with Prophet Features | Towards Data Science, truy cập vào tháng 4 27, 2026, https://towardsdatascience.com/boost-your-time-series-forecasts-combining-gradient-boosting-models-with-prophet-features-8e738234ffd/
+         61. A Hybrid Prediction Model Using Statistical Forecasters and Deep Neural Networks - MDPI, truy cập vào tháng 4 27, 2026, https://www.mdpi.com/2076-3417/15/23/12393
+         62. Time Series Forecasting with LightGBM and Prophet | by Gen. Devin DL. | Medium, truy cập vào tháng 4 27, 2026, https://medium.com/@tubelwj/time-series-forecasting-with-lightgbm-and-prophet-62caca1a926d
+         63. Implementing Online Ensembles for Time Series Forecasting, truy cập vào tháng 4 27, 2026, https://magittan.github.io/static/Online_Ensembles/Implementing_Online_Ensemble_Learning.pdf
+         64. Recency-Weighted Temporally-Segmented Ensemble for Time-Series Modeling Multi-step Forecasting in Process Industries - arXiv, truy cập vào tháng 4 27, 2026, https://arxiv.org/html/2403.02150v1
+         65. Store Sales - Time Series Forecasting | Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/competitions/store-sales-time-series-forecasting
+         66. Forecasting Sales with TimeSeries - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/rizwanrizwannazir/forecasting-sales-with-timeseries
+         67. Additional Examples - holidays - Read the Docs, truy cập vào tháng 4 27, 2026, https://holidays.readthedocs.io/en/latest/examples/
+         68. Loading data and Creating Submission File - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/bbloggsbott/loading-data-and-creating-submission-file
+         69. Create Your First Submission - Kaggle, truy cập vào tháng 4 27, 2026, https://www.kaggle.com/code/ryanholbrook/create-your-first-submission
+         70. pandas.date_range — pandas 3.0.2 documentation, truy cập vào tháng 4 27, 2026, https://pandas.pydata.org/docs/reference/api/pandas.date_range.html
+         71. How to Generate Date Ranges in Python - Statology, truy cập vào tháng 4 27, 2026, https://www.statology.org/how-to-generate-date-ranges-in-python/

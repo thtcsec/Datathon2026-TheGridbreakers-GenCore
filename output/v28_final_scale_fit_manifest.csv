@@ -1,0 +1,6 @@
+candidate,scale,scale_delta,path,Revenue_mean,COGS_mean,quad_pred_score,cubic_pred_score
+v28_v23_both_up_175pct,1.0175,0.01750000000000007,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v28_v23_both_up_175pct.csv,4412265.22069343,3745667.3474452556,699401.1374133296,699760.2168888939
+v28_v23_both_up_200pct,1.02,0.020000000000000018,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v28_v23_both_up_200pct.csv,4423106.167025547,3754870.461459854,699138.1719399953,699701.0930866742
+v28_v23_both_up_225pct,1.0225,0.022499999999999964,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v28_v23_both_up_225pct.csv,4433947.113686131,3764073.5750547443,698979.5982366608,699807.984866011
+v28_v23_both_up_250pct,1.025,0.02499999999999991,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v28_v23_both_up_250pct.csv,4444788.060127737,3773276.6887773727,698925.4163033264,700088.6688455708
+v28_v23_both_up_275pct,1.0275,0.02750000000000008,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v28_v23_both_up_275pct.csv,4455629.006642335,3782479.8029744527,698975.6261399917,700550.9216440204

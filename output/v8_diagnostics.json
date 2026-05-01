@@ -1,0 +1,17 @@
+{
+  "version": "v8_final",
+  "cv": {
+    "Revenue_naive": 856675.3616644621,
+    "Revenue_corrected": 856414.3423592594,
+    "Revenue_naive_tet": 856621.4067174456,
+    "Revenue_corrected_tet": 841609.2406282127,
+    "COGS_naive": 746486.6037531567,
+    "COGS_corrected": 753947.0766003686,
+    "COGS_naive_tet": 744335.1211364039,
+    "COGS_corrected_tet": 738760.5082323941
+  },
+  "best_tet": {
+    "Revenue": 0.35,
+    "COGS": 0.35
+  }
+}

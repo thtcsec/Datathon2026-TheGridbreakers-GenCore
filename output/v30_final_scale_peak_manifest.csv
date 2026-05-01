@@ -1,0 +1,3 @@
+candidate,path,global_scale,revenue_peak_gamma,cogs_peak_gamma,Revenue_mean,COGS_mean
+v30_v23_both_up_300pct,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v30_v23_both_up_300pct.csv,1.03,1.0,1.0,4466469.952962775,3791682.9168195254
+v30_v23_up300_peak_amp,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v30_v23_up300_peak_amp.csv,1.03,1.045,1.035,4466469.952962774,3791682.9168195263

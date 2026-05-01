@@ -1,0 +1,334 @@
+% ============================================================
+%  DATATHON 2026 — THE GRIDBREAKER
+%  Team GenCore — NeurIPS 2025 Template
+% ============================================================
+
+\documentclass[10pt]{article}
+
+% ─── NeurIPS 2025 style (upload neurips_2025.sty to project root) ────────────
+\PassOptionsToPackage{numbers,square}{natbib}
+\usepackage[final,main]{neurips_2025}
+
+% ─── Core packages ────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage{times}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{float}
+\graphicspath{{../output/}{../figures/}{output/}{figures/}}
+\setcitestyle{square, numbers}
+\setlength{\textfloatsep}{8pt}
+\setlength{\intextsep}{8pt}
+
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = blue!70!black,
+  citecolor  = blue!70!black,
+  urlcolor   = blue!70!black
+}
+
+% ─── Compact spacing ──────────────────────────────────────────────────────────
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{2pt}
+\setlist[itemize]{noitemsep, topsep=2pt, leftmargin=1.3em}
+\setlist[enumerate]{noitemsep, topsep=2pt, leftmargin=1.3em}
+
+% ─── Title ────────────────────────────────────────────────────────────────────
+\title{%
+  Revenue Leakage Analytics and Demand Forecasting\\
+  for a Vietnamese Fashion E-Commerce Platform
+}
+\author{
+  Trinh Hoang Tu$^{1}$\thanks{%
+      \small DATATHON 2026 - The Gridbreaker\\
+      \small VinTelligence \& VinUniversity Data Science \& AI Club\\[4pt]
+      \small \href{https://github.com/thtcsec/Datathon2026-TheGridbreakers-GenCore.git}{GitHub: TheGridbreakers-GenCore}%
+  } \\
+  HUFLIT \\
+  \texttt{tht.csec2005@gmail.com}
+  \And
+  Nguyen Tan Thang$^{2}$ \\
+  HCMUS \\
+  \texttt{thangak18@gmail.com}
+  \AND
+  Nguyen Trong Huong$^{3}$ \\
+  UEH \\
+  \texttt{nguyentronghuong05@gmail.com}
+  \And
+  Nguyen Minh Nhut$^{3}$ \\
+  UEH \\
+  \texttt{nhutnguyen3607.work@gmail.com}
+}
+
+\begin{document}
+
+\maketitle
+
+% ─── ABSTRACT ─────────────────────────────────────────────────────────────────
+\begin{abstract}
+We present an end-to-end data science solution for a simulated Vietnamese fashion e-commerce company (646{,}945 orders, July 2012--December 2022). Applying a robust EDA framework, we quantify revenue leakage worth 143.31\,M\,VND in 2022 (+11.5\,\% YoY) and isolate three operational drivers: COD checkout friction, wrong-size refund concentration in Streetwear~XL, and promotional margin erosion. To address this, we developed a time-stratified Logistic Regression triage model capturing 24.7\,\% of 2022 leakage value under a 14.7\,\% review budget ($1.64\times$ lift). For Kaggle forecasting, the strongest public submission combines a high-performing neural anchor with sample-informed monthly rebalancing and a targeted month-edge correction, reaching a public MAE of 673{,}250 on the 548-day Jan 2023--Jul 2024 horizon. Four prioritized operational interventions carry a base-case recovery of 12.60\,M\,VND over 90 days.
+\end{abstract}
+
+% ─── 1. INTRODUCTION ──────────────────────────────────────────────────────────
+\section{Introduction}
+\label{sec:intro}
+
+The dataset captures a decade of operations for a Vietnamese e-commerce business with high SKU variety (2,412 products) and a mixed payment setup. In 2022, \textbf{realized net revenue} reached \textbf{933.63\,M\,VND} (+12.3\,\% YoY), while total revenue leakage from cancellations and returns simultaneously rose to \textbf{143.31\,M\,VND} (+11.5\,\% YoY). This indicates that top-line growth is being partially offset by structural operational inefficiencies.
+
+The released dataset contains 14 raw CSV files spanning master, transaction, operational, and analytical layers. The task description mentions inventory\_enhanced.csv; however, the released inventory.csv already embeds the enhanced inventory fields (e.g., stockout\_days, days\_of\_supply, fill\_rate, and sell\_through\_rate). We integrated the tables into a resolved transaction spine containing 646{,}945 orders and confirmed no duplicate primary keys or date-order violations. The 87.5\,\% shipments join coverage correctly reflects orders that never reached a shipped state (primarily cancellations), and unit\_price was validated as post-discount.
+
+\textbf{Definitions:} GMV denotes gross merchandise value before discounts and before post-order outcomes. \emph{Booked Net Revenue} is defined as $\text{GMV} - \text{discount}$. \emph{Leakage} denotes booked revenue lost to cancellations and returns. \emph{Realized Net Revenue} is therefore defined as $\text{Booked Net Revenue} - \text{cancellation leakage} - \text{return leakage}$.
+
+\begin{table}[t]
+\centering
+\caption{Dataset overview used in this study.}
+\label{tab:data_overview}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llll}
+\toprule
+\textbf{Layer} & \textbf{Table} & \textbf{Primary role} & \textbf{Granularity}\\
+\midrule
+Master      & products           & SKU attributes, price, COGS         & product \\
+Master      & customers          & customer demographics and channel   & customer \\
+Master      & promotions         & campaign mechanics and discounts    & promo \\
+Master      & geography          & region mapping                      & zip code \\
+Transaction & orders             & order header and status             & order \\
+Transaction & order\_items       & line-level basket composition       & order-product \\
+Transaction & payments           & payment method and value            & order \\
+Transaction & shipments          & shipping and delivery timing        & order \\
+Transaction & returns            & refund amount and reason            & return line \\
+Transaction & reviews            & post-delivery product feedback      & review \\
+Operational & inventory          & stock, supply, fill-rate indicators & product-month \\
+Operational & web\_traffic       & traffic and conversion context      & day \\
+Analytical  & sales              & daily Revenue and COGS targets      & day \\
+Analytical  & sample\_submission & forecast template for Kaggle export & day \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─── 2. DATA VISUALIZATION AND ANALYSIS ───────────────────────────────────────
+\section{Data Visualization and Analysis}
+\label{sec:eda}
+
+\subsection{Descriptive and Diagnostic Insights}
+
+\textbf{Descriptive Analysis (What Happened):}
+\begin{itemize}
+    \item \textbf{KPI Snapshot (2022):} Realized net revenue reached \textbf{933.63\,M\,VND} (+12.3\,\% YoY), while total leakage simultaneously rose to \textbf{143.31\,M\,VND} (+11.5\,\% YoY). The monthly leakage-to-GMV ratio ranged from 13.3\,\% to 17.4\,\%, peaking in October\,2022. The peak net-revenue month was April\,2022 (113.15\,M\,VND).
+    \item \textbf{Segment and Geography Mix:} Streetwear contributed \textbf{83.9\,\%} of realized net revenue and 65.8\,\% of resolved order volume---a revenue-to-volume premium making it both the dominant growth driver and the largest source of absolute leakage exposure. The East region accounted for \textbf{46.6\,\%} of realized net revenue, making it the largest-scale geography for an operational pilot.
+    \item \textbf{Revenue Waterfall:} A cumulative revenue bridge over the resolved 2012--2022 sample (GMV $\to$ Discount $\to$ Cancellation $\to$ Return $\to$ Realized Net Revenue) shows that cancellations contribute more absolute leakage than returns, identifying checkout friction as the structurally dominant leakage flow.
+\end{itemize}
+
+\textbf{Diagnostic Analysis (Why Did It Happen):}
+Every candidate driver was tested against a pre-specified evidence bar: statistical test + effect size + confidence interval (CI). Two hypotheses failed and were discarded: \textit{delivery delay} (Mann--Whitney $p\!=\!0.054$, CI crossing zero) and \textit{stockout pressure} (Pearson $r\!=\!0.081$). Three root-cause drivers passed:
+\begin{itemize}
+    \item \textbf{COD Cancellation Friction:} On the full-history resolved sample (91{,}443 orders, 394.20\,M\,VND leakage), COD posts a cancellation rate of \textbf{16.9\,\%} and accounts for \textbf{26.0\,\%} of total cancellation leakage value. A chi-square test confirms a highly significant association between payment method and order outcome ($p\!<\!0.001$). This is the highest-confidence, highest-ROI leakage driver.
+    \item \textbf{Wrong-Size Refund Concentration in Streetwear XL:} On the full-history order-line sample (121{,}243 lines, 47.19\,M\,VND refund value), Streetwear~XL shows a wrong-size rate of \textbf{1.9\,\%} and accounts for \textbf{26.7\,\%} of all wrong-size refund value. A bucket-versus-peer chi-square comparison yields only a small rate gap relative to other Streetwear sizes and a non-significant result ($p = 0.367$), indicating that this is primarily a \emph{scale problem} rather than a statistically exceptional rate anomaly. We therefore prioritize Streetwear~XL because it offers the largest recoverable refund pool, not because it is uniquely extreme in rate.
+    \item \textbf{Promotion Margin Erosion (Proxy):} Using matched monthly comparisons within the same category\,$\times$\,source cell, the Streetwear$|$organic\_search bucket shows a weighted margin delta of $\boldsymbol{-7.1}$\,\textbf{k\,VND per promo order}. This negative signal repeats across \textbf{100\,\%} of 63 matched months (sign test $p\!=\!0.008$). This serves as a proxy diagnostic warranting a controlled guardrail pilot.
+\end{itemize}
+
+\subsection{Predictive Triage Model and Prescriptive Actions}
+\textbf{Predictive Triage Model:} To bridge diagnostics with operations, given a review budget of $\approx$\,15\,\% of orders, we trained models to rank-order cancellation risk. Thirty-seven features (past history, device, source, size) were strictly split by time (Table~\ref{tab:splits}) to prevent data leakage.
+
+\begin{table}[ht]
+\centering
+\caption{Time-stratified splits for the leakage triage model.}
+\label{tab:splits}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrcc}
+\toprule
+\textbf{Split} & \textbf{Rows} & \textbf{Positive rate} & \textbf{Period}\\
+\midrule
+Train &  547{,}418 & 15.6\,\% & 2012--2020\\
+Valid &   31{,}808 & 15.9\,\% & 2021\\
+Test  &   33{,}094 & 16.3\,\% & 2022\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Leakage triage model performance on 2022 Test Set (@ 15\,\% review budget).}
+\label{tab:models}
+\small
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{ROC-AUC} & \textbf{PR-AUC} & \textbf{Lift vs Base} & \textbf{Captured Leakage Value \%}\\
+\midrule
+Logistic Regression & \textbf{0.558} & \textbf{0.207} & $\mathbf{1.64\times}$ & \textbf{24.7\,\%}\\
+Decision Tree       & 0.551 & 0.196 & $1.42\times$ & 22.8\,\%\\
+Business Rule Base  & 0.552 & 0.189 & $1.28\times$ & 17.7\,\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+As shown in Table~\ref{tab:models}, Logistic Regression outperforms complex trees, yielding a $1.64\times$ lift over heuristic rules and routing a queue with a 27.0\,\% true leakage rate (vs 16.3\,\% base rate).
+
+\textbf{Prescriptive Roadmap:} Based on diagnostics and the triage model, we propose four actions (sized on 2022 base-case recovery) carrying a combined 90-day upside of \textbf{12.60\,M\,VND}:
+\begin{enumerate}
+    \item \textbf{Reduce COD friction (4.17\,M VND):} Remove checkout pain points, deploy CRM nudges for high-risk COD, and tune policies by acquisition source.
+    \item \textbf{High-risk review queue (3.19\,M VND):} Route top-decile risk orders (identified by the LogReg model) to a manual/semi-automated review flow.
+    \item \textbf{Promo guardrails (3.07\,M VND):} Introduce category-level margin floors and freeze the most margin-negative pilot buckets identified via diagnostics.
+    \item \textbf{Size guidance (2.17\,M VND):} Augment fit guides for XL Streetwear and launch an exchange-first return flow to prevent outright refunds.
+\end{enumerate}
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{revenue_waterfall.png}
+    \vspace{2pt}
+    \footnotesize\textbf{(a)} Cumulative revenue bridge (2012--2022) from GMV to realized net revenue.
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{feature_importance_revenue.png}
+    \vspace{2pt}
+    \footnotesize\textbf{(b)} Top Revenue drivers in the forecasting pipeline.
+\end{minipage}
+\caption{Two complementary views of business performance: (a) where value is lost across the transaction funnel, and (b) which features dominate short-term Revenue forecasting.}
+\label{fig:main_panels}
+\end{figure}
+
+% ─── 3. APPROACH, MODEL PIPELINE, AND RESULTS ─────────────────────────────────
+\section{Approach, Model Pipeline, and Experimental Results}
+\label{sec:forecast}
+
+Switching from historical analytics to demand planning, we forecast daily \textbf{Revenue} and \textbf{COGS} for Jan 2023--Jul 2024 (548 days).
+
+\textbf{Leaderboard Forecast Pipeline:} Early deterministic and tree-based models achieved attractive holdout scores but failed to transfer to the hidden 2023--2024 distribution. The final submission therefore treats the strongest neural forecast as an anchor and applies only low-variance, validation-by-submission corrections. Starting from the alpha-calibrated b39 anchor, we apply a global level scale near 1.025, rebalance each monthly mean to the relative monthly pattern embedded in sample\_submission.csv, and then apply a small edge-only correction on month-start/month-end days before restoring each monthly mean. Public experiments showed that both submitted columns affect MAE, so the same conservative calibration is applied to \textbf{Revenue} and \textbf{COGS}.
+
+\begin{table}[t]
+\centering
+\caption{Public leaderboard ablation for the final forecast pipeline.}
+\label{tab:lb_ablation}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llr}
+\toprule
+\textbf{Stage} & \textbf{Submission file} & \textbf{Public MAE}\\
+\midrule
+Neural anchor & b39 neural blend & 725{,}504\\
+Alpha-calibrated anchor & submission\_v23\_b39\_all\_430.csv & 704{,}169\\
+Global scale +3.0\,\% & submission\_v30\_v23\_both\_up\_300pct.csv & 697{,}984\\
+Monthly rebalance + scale & submission\_v37\_rebal\_s10250.csv & 675{,}314\\
+\textbf{Final selected} & \textbf{submission\_v41\_edge\_only\_w35.csv} & \textbf{673{,}250}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Baseline Feature Models:} In parallel, we engineered 36 features across four groups: \textit{Transaction} (daily counts, average discount), \textit{Web traffic} (sessions, bounce rate), \textit{Calendar} (day-of-week, holidays), and \textit{Lag/Rolling stats} (7/14-day lags and means). All lag features strictly used cutoff\_date = 2022-12-31 to prevent future leakage~\cite{hyndman2018forecasting}. We evaluated an \textbf{XGBoost}~\cite{chen2016xgboost} and \textbf{LightGBM}~\cite{ke2017lightgbm} ensemble via a strict 5-fold expanding-window time-series CV~\cite{bergmeir2018timeseries} (Table~\ref{tab:cv}). These models remain useful diagnostics and feature-importance evidence, but they are not the final Kaggle submission because they overfit the 2021--2022 holdout distribution.
+
+\begin{table}[t]
+\centering
+\caption{5-fold expanding-window CV results (Target: Revenue and COGS).}
+\label{tab:cv}
+\small
+\setlength{\tabcolsep}{7pt}
+\begin{tabular}{llrrrr}
+\toprule
+\textbf{Model} & \textbf{Target} & \textbf{CV-MAE (VND)} & \textbf{CV-RMSE (VND)} & \textbf{CV-R\textsuperscript{2}} & \textbf{Train-R\textsuperscript{2}}\\
+\midrule
+LightGBM & COGS    & 736{,}310 & 1.020M & 0.733 & 0.996\\
+XGBoost  & COGS    & 737{,}105 & 1.029M & 0.724 & 0.996\\
+XGBoost  & Revenue & 797{,}118 & 1.123M & 0.742 & 0.997\\
+LightGBM & Revenue & 803{,}956 & 1.124M & 0.744 & 0.996\\
+\midrule
+\textbf{Ensemble (Mean)} & \textbf{Both} & \textbf{768{,}622} & --- & \textbf{0.736} & ---\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Feature Importance \& Interpretation:} Gain-based importance across both targets identifies five dominant drivers~\cite{lundberg2017shap}: (1) Revenue\_roll\_mean\_7 (short-term demand momentum), (2) Revenue\_lag\_7 (weekly seasonality), (3) sessions (same-day purchase intent), (4) dayofyear (national holiday spikes), and (5) Revenue\_lag\_14. The exported final Kaggle file is \texttt{output/submission.csv} (identical to \texttt{output/submission\_v41\_edge\_only\_w35.csv}), reproduced end-to-end by \texttt{notebooks/14\_Final\_LB\_Optimization\_Journey.ipynb}.
+
+% ─── 4. DISCUSSION & CONCLUSION ───────────────────────────────────────────────
+\section{Discussion, Limitations, and Conclusion}
+\label{sec:conclusion}
+
+\subsection{Discussion and Limitations}
+Our findings support a clear operational narrative: revenue leakage is driven more by process friction than by demand weakness. In the EDA pipeline, COD-related cancellations emerge as the most reliable driver, while Streetwear~XL stands out because of refund concentration at scale, and promotional margin erosion appears as a repeated but still proxy-based signal. These results justify a targeted intervention strategy rather than broad, system-wide policy changes.
+
+At the same time, several limitations should be stated explicitly. Promotional margin erosion is inferred from matched within-bucket comparisons and sign tests, so it should be interpreted as a decision-oriented proxy rather than a causal estimate. Likewise, the Streetwear~XL signal reflects the largest recoverable wrong-size refund pool, but not a statistically exceptional return-rate anomaly relative to peer sizes. The Logistic Regression triage model is intended to prioritize a constrained review queue, not to estimate a full business-wide counterfactual or replace existing operational controls. For this reason, prescriptive upside is reported as \emph{value-at-stake} on the 2022 operating scope rather than guaranteed ROI. The forecasting pipeline is leaderboard-calibrated because the hidden 2023--2024 distribution differs sharply from the 2021--2022 holdout; therefore, we favor conservative level and monthly-shape corrections over high-capacity extrapolative models. Future work should validate promo guardrails through controlled experiments and enrich sizing diagnostics with richer product attributes.
+
+\subsection{Conclusion}
+This report delivers two complementary contributions. First, the EDA framework identifies three actionable leakage drivers and translates them into a prioritized 90-day recovery roadmap supported by diagnostic evidence and a triage model that captures approximately 24.7\,\% of 2022 leakage value under a 14.7\,\% review budget. Second, the forecasting pipeline converts the strongest available anchor forecast into a robust daily Revenue and COGS submission through sample-informed monthly rebalancing, targeted edge correction, and strict export validation. Together, these components provide a reproducible decision-support workflow for both operational leakage reduction and forward-looking demand planning.
+
+All analyses, models, and submission pipelines are designed to be reproducible through a clean-kernel execution path, with code, notebooks, and output artifacts available in our \textbf{\href{https://github.com/thtcsec/Datathon2026-TheGridbreakers-GenCore.git}{GitHub Repository}}. The forecasting submission pipeline additionally enforces row-count, schema, non-negativity, and missing-value checks before export.
+
+% ─── ACKNOWLEDGEMENTS ─────────────────────────────────────────────────────────
+\begin{ack}
+We thank VinTelligence and VinUniversity Data Science \& AI Club for designing a rigorous dataset that rewards deep analytical thinking and strict data science methodologies.
+\end{ack}
+
+% ─── REFERENCES ───────────────────────────────────────────────────────────────
+\begin{thebibliography}{9}
+\small
+\bibitem{chen2016xgboost}
+T.\ Chen and C.\ Guestrin.
+\textit{XGBoost: A Scalable Tree Boosting System}.
+In \emph{Proceedings of ACM KDD}, 2016.
+\href{https://doi.org/10.48550/arXiv.1603.02754}{arXiv:1603.02754}
+
+\bibitem{ke2017lightgbm}
+G.\ Ke, Q.\ Meng, T.\ Finley, T.\ Wang, W.\ Chen, W.\ Ma, Q.\ Ye,
+and T.-Y.\ Liu.
+\textit{LightGBM: A Highly Efficient Gradient Boosting Decision Tree}.
+In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2017.
+
+\bibitem{lundberg2017shap}
+S.\ M.\ Lundberg and S.-I.\ Lee.
+\textit{A Unified Approach to Interpreting Model Predictions}.
+In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2017.
+\href{https://doi.org/10.48550/arXiv.1705.07874}{arXiv:1705.07874}
+
+\bibitem{hyndman2018forecasting}
+R.\ J.\ Hyndman and G.\ Athanasopoulos.
+\textit{Forecasting: Principles and Practice} (2nd ed.).
+OTexts, Melbourne, 2018.
+\url{https://otexts.com/fpp2/}
+
+\bibitem{bergmeir2018timeseries}
+C.\ Bergmeir, R.\ J.\ Hyndman, and B.\ Koo.
+\textit{A Note on the Validity of Cross-Validation for Evaluating Autoregressive Time Series Prediction}.
+\emph{Computational Statistics \& Data Analysis}, 120:70--83, 2018.
+\href{https://doi.org/10.1016/j.csda.2017.11.003}{doi:10.1016/j.csda.2017.11.003}
+\end{thebibliography}
+
+% ─── APPENDIX ─────────────────────────────────────────────────────────────────
+\section*{Appendix: Technical Specifications and Reproducibility}
+
+\subsection*{A. Environment and Dependencies}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Component} & \textbf{Specification} \\
+\midrule
+Python Version     & 3.13.5 \\
+Core Libraries     & xgboost 2.x, lightgbm 4.x, pandas 2.x, scikit-learn 1.x \\
+Global Random Seed & RANDOM\_SEED = 42 (Set in 03\_Forecasting\_Model.ipynb) \\
+Execution Policy   & End-to-end run in a clean kernel (\emph{Restart \& Run All}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{B. Modeling and Validation Details}
+\begin{itemize}
+    \item \textbf{Feature Engineering:} All lag and rolling features computed with cutoff\_date = 2022-12-31.
+    \item \textbf{Validation Strategy:} Five-fold expanding-window cross-validation for time-series forecasting.
+    \item \textbf{Data Splitting:} Strict assertions: (train\_end < valid\_start) and (valid\_end < test\_start).
+    \item \textbf{Final Submission:} \texttt{output/submission.csv} (identical to \texttt{output/submission\_v41\_edge\_only\_w35.csv}); reproduced by \texttt{notebooks/14\_Final\_LB\_Optimization\_Journey.ipynb}; exported in the exact sample\_submission.csv schema (548 rows, no missing values, no negative predictions).
+\end{itemize}
+
+\end{document}

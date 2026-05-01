@@ -1,0 +1,3 @@
+candidate,scale,path,Revenue_mean,COGS_mean,pred_quad_all,pred_quad_weighted,pred_quad_recent4,pred_cubic_all
+v29_v23_both_up_325pct,1.0325,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v29_v23_both_up_325pct.csv,4477310.899543796,3800886.0306569347,698170.3910848236,698008.3864478711,697864.1505844765,697729.5717637533
+v29_v23_both_up_350pct,1.035,D:\tu_projects\Datathon2026-TheGridbreakers-GenCore\output\submission_v29_v23_both_up_350pct.csv,4488151.845912409,3810089.144361314,698330.2738568243,698109.1304769479,697903.7791411708,697673.2054600086
