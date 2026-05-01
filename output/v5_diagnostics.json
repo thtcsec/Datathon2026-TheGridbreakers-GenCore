@@ -1,0 +1,15 @@
+{
+  "version": "v5_naive_first",
+  "timestamp": "2026-04-28T10:26:27.382459",
+  "cv_results": {
+    "Revenue_naive": 812946.5770365369,
+    "Revenue_corrected": 787627.2589215878,
+    "Revenue_pure_naive364": 856753.7208657747,
+    "COGS_naive": 688894.4698908759,
+    "COGS_corrected": 656223.0658600654,
+    "COGS_pure_naive364": 745703.4550060828,
+    "Revenue_peryear": 967731.7753778475,
+    "COGS_peryear": 796648.7979073962
+  },
+  "key_insight": "Prophet alone=2.3M MAE on 548-day holdout. Naive364=830k. V5 uses Naive as backbone."
+}

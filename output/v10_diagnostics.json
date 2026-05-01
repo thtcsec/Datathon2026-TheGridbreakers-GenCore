@@ -1,0 +1,20 @@
+{
+  "version": "v10_ultimate",
+  "best_config": {
+    "Revenue": {
+      "target": "Revenue",
+      "approach": "A_full_tet5_naive60",
+      "mae": 752154.8612334143,
+      "tet": 0.05,
+      "blend": 0.6
+    },
+    "COGS": {
+      "target": "COGS",
+      "approach": "A_full_tet10_naive60",
+      "mae": 658583.569720324,
+      "tet": 0.1,
+      "blend": 0.6
+    }
+  },
+  "total_approaches_tested": 64
+}
