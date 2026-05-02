@@ -41,7 +41,7 @@ Format trùng `data/raw/sample_submission.csv`.
 5. **v41:** edge-only correction (**w = 0.35**), restore monthly mean → submission cuối.
 6. Validate schema BTC, rồi ghi **`output/submission.csv`** và **`submission_final_best_673250.csv`**.
 
-**Kaggle:** chỉ cần **competition data** + chính notebook. Module `neural_blend_refined_b39.py` được **giải nén từ chuỗi zlib+base64 nhúng sẵn trong notebook** ra `/kaggle/working` (mã nguồn pipeline, không phải submission). **Không** dataset phụ, **không** clone, **không** tải URL ngoài.
+**Kaggle:** trong notebook bấm **Add Data** và gắn bundle thi (giống notebook 12 — phải thấy `/kaggle/input/.../sales.csv`). Module pipeline được **giải nén từ zlib+base64 nhúng trong notebook** ra `/kaggle/working` — đó là **source code**, không phải submission hay csv BTC lạ.
 
 
 `notebooks/13_LB_Optimization_Log.ipynb` chỉ là log timeline điểm LB, không phải pipeline chạy submission.
