@@ -32,19 +32,22 @@ Format trùng `data/raw/sample_submission.csv`.
 
 ## Notebook sinh submission cuối
 
-`notebooks/14_Final_LB_Optimization_Journey.ipynb` là notebook BTC-compliant: **Restart & Run All**:
+`notebooks/14_Final_LB_Optimization_Journey.ipynb` là notebook **BTC-compliant** chính thức (**Restart & Run All**).  
+`notebooks/13_LB_Optimization_Log.ipynb` chỉ là **timeline / điểm LB**, không phải pipeline tái tạo submission.
+
+**Đường leaderboard đã chốt:** file tốt nhất đã verify là `submission_v41_edge_only_w35.csv` (public MAE **673 250.34766**). Notebook 14 xuất `submission = v41.copy()` → `output/submission.csv` khớp artefact đó; các biến thể **v43** trong notebook chỉ mang tính thử — điểm kém hơn (~675 108), **không** dùng làm file nộp chính.
+
+**Kaggle sau deadline:** nếu `/kaggle/input` trống hoặc không còn bundle BTC, mọi notebook đều báo `sales.csv not found` — cần **Add Data** hoặc tự upload dataset chứa các CSV đề bài (logic tìm file trong notebook 12 / 14 / 06: `os.walk` trước, `glob` sau).
+
+**Pipeline notebook 14 (Restart & Run All):**
 
 1. **Train neural anchor b39** từ raw (`src/neural_blend_refined_b39.py`; logic port từ nhánh teammate `Thang-B`: `src/r.py` / `Kaggle_Sub_Refined_Monthly_COGS.ipynb`), ghi kèm `output/submission_raw_stable_neural_blend_w733_w563_monthly_cogs_b39.csv`.
-2. **v20:** shape-calibrated anchor + lag prior.
-3. **v23:** alpha **4.30** trên anchor.
-4. **v30:** scale toàn cục **1.030** (bước trung); **v33/v37:** monthly rebalance + scale **1.025** như các script trong `src/`.
-5. **v41:** edge-only correction (**w = 0.35**), restore monthly mean → submission cuối.
-6. Validate schema BTC, rồi ghi **`output/submission.csv`** và **`submission_final_best_673250.csv`**.
+2. **GBDT tabular** (`src/ml_tabular_blend.py`): XGBoost + LightGBM trên lag / calendar / `web_traffic` / `inventory` — **TimeSeriesSplit** (MAE từng fold trong log) + blend vào anchor; **walk-forward** optional trên cuối 2022 (§1c).  
+   *Khớp byte với artefact cũ **`submission_v41_edge_only_w35.csv`** (chỉ neural b39 → v41): trong notebook 14 §1b đặt **`ML_TABULAR_WEIGHT = 0`**.*
+3. **v20 … v41 (frozen calibration):** các hệ số (`alpha` **4.30**, scale, edge, …) là **legacy** từ thí nghiệm leaderboard — không retune trong notebook; **không** nhầm với metric hold-out ở bước 2.
+4. Validate schema BTC, ghi **`output/submission.csv`** và **`submission_final_best_673250.csv`**.
 
 **Kaggle:** trong notebook bấm **Add Data** và gắn bundle thi (giống notebook 12 — phải thấy `/kaggle/input/.../sales.csv`). Module pipeline được **giải nén từ zlib+base64 nhúng trong notebook** ra `/kaggle/working` — đó là **source code**, không phải submission hay csv BTC lạ.
-
-
-`notebooks/13_LB_Optimization_Log.ipynb` chỉ là log timeline điểm LB, không phải pipeline chạy submission.
 
 ## Cấu trúc thư mục
 
@@ -62,6 +65,7 @@ Format trùng `data/raw/sample_submission.csv`.
 │   └── … (một số artefact verify / PNG phục vụ báo cáo; sweep thử LB cục bộ bị .gitignore)
 ├── src/
 │   ├── neural_blend_refined_b39.py
+│   ├── ml_tabular_blend.py   # XGB+LGB, TimeSeries CV + walk-forward + blend vào anchor
 │   └── v20…v43 pipeline scripts phụ các bước LB-guided
 ├── report/                      # Báo cáo NeurIPS-style
 ├── requirements.txt
