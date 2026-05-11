@@ -1,6 +1,13 @@
 # DATATHON 2026 — The Gridbreakers · Team GenCore
 
+![Datathon Banner](datathon_banner.jpg)
+
 Repository của đội **GenCore** dự thi **DATATHON 2026 — The Gridbreakers** (VinTelligence — VinUniversity Data Science & AI Club).
+
+**🏆 Kết quả: Đứng thứ 10 Toàn Quốc**  
+Giữa **>1500 thí sinh** và **>500 đội** tham gia toàn quốc.
+
+![Datathon Top 50](datathon_top50.jpg)
 
 Đề Phần 3 (Kaggle): dự báo `Revenue` và `COGS` **theo ngày** trong khoảng **2023-01-01 → 2024-07-01** (**548** dòng), từ dữ liệu lịch sử đến **2022-12-31**.
 
