@@ -17,8 +17,8 @@ Giữa **>1500 thí sinh** và **>500 đội** tham gia toàn quốc.
 | :--- | :--- | :--- |
 | **Trịnh Hoàng Tú** | **Trưởng nhóm** | Trường Đại học Ngoại ngữ - Tin học TP.HCM (HUFLIT) |
 | Nguyễn Tấn Thắng | Thành viên | Trường Đại học Khoa học Tự nhiên - ĐHQG TP.HCM (HCMUS) |
-| Nguyễn Trọng Hưởng | Thành viên | Trường Đại học Kinh tế TP.HCM (UEH) |
-| Nguyễn Minh Nhựt | Thành viên | Trường Đại học Kinh tế TP.HCM (UEH) |
+| Nguyễn Trọng Hưởng | Thành viên | Đại học Kinh tế TP.HCM (UEH) |
+| Nguyễn Minh Nhựt | Thành viên | Đại học Kinh tế TP.HCM (UEH) |
 
 **Mã đội thi:** `YdHJLESH3WgWYCgY8nnb`
 
